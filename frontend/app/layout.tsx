@@ -45,6 +45,21 @@ export const metadata: Metadata = {
     siteName: "AI Solution CRM",
     locale: "ru_RU",
     type: "website",
+    images: [
+      {
+        url: "/crm-og.png",
+        width: 1200,
+        height: 630,
+        alt: "AI Solution CRM",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AI Solution CRM",
+    description:
+      "Закрытая CRM AI Solution для лидов, проектов, команды и задач.",
+    images: ["/crm-og.png"],
   },
   robots: {
     index: true,
