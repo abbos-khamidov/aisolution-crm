@@ -608,3 +608,64 @@ cash-flow net + aging buckets, manager leaderboard math, channel-by-month
 grouping). Полный набор: 56/56 зелёных (было 51). `ruff check` чисто.
 `alembic downgrade base && alembic upgrade head` — чистый цикл без ошибок.
 Frontend: `tsc --noEmit` и `npm run build` — без ошибок.
+
+## Светлая тема + реальный логотип (2026-07-08)
+Founder прислал `logoLight.png` (шестиугольная "circuit tree" иконка, градиент
+ярко-синий → тёмно-синий) и `mottoLight.png` (полный лого-лок-ап "AI SOLUTION"
++ тэглайн "УМНЫЕ РЕШЕНИЯ. РЕАЛЬНЫЙ РОСТ.") — прямо в корень проекта. Задача:
+заменить неоновую тёмную тему на светлую, как на самом сайте aisolution.uz,
+и вставить реальные логотипы.
+
+**Источник палитры:** не гадал по скриншотам — прочитал реальные CSS custom
+properties из `~/Desktop/aisolution/aisolution website/app/globals.css`
+(тот же founder, тот же бренд, уже в продакшене) и перенёс 1:в:1: `--bg:
+#F8FAFC`, `--text: #0F172A`, `--accent (blue): #0B7FE8`, `--accent-strong
+(blue-dark): #0B4F9E`, границы `rgba(15,23,42,0.1)` и т.д. — CRM теперь
+буквально совпадает с токенами сайта, а не "похожая светлая тема с потолка".
+`success`/`spark` (нет аналога на сайте, там только акцент-блю/сайан) — добавил
+свои (`emerald #059669`, `amber #F59E0B`), `danger` — точное совпадение с
+сайтовским `--destructive: #EF4444`.
+
+**Реализация:**
+- `frontend/app/globals.css` — все CSS-переменные темы переписаны на светлые
+  значения (имена переменных не менял — весь остальной код через Tailwind
+  токены типа `bg-surface`/`text-ink`/`border-border`, поэтому менять его не
+  пришлось). `.atmosphere` (фоновые блобы) и `.grain` — убавил интенсивность
+  на порядок (opacity 0.5→0.16, 0.05→0.025, blend-mode overlay→multiply) —
+  на белом фоне яркие светящиеся кляксы тёмной темы выглядели бы грязно;
+  теперь это едва заметная синяя дымка, ближе к `--gradient-mesh` самого
+  сайта.
+- Реальные логотипы: `frontend/public/logo.png` (256×256, иконка),
+  `frontend/public/logo-wordmark.png` (512×341, полный лок-ап) — уменьшены
+  через `sips` с исходных ~830KB/1MB PNG. `frontend/app/icon.png` (180×180) —
+  заменил дефолтный Next.js `favicon.ico`-плейсхолдер на реальную иконку
+  (Next.js App Router подхватывает `app/icon.png` автоматически).
+  `Sidebar.tsx` — текстовый "ai"-бейдж заменён на `<Image src="/logo.png">`.
+  `login/page.tsx` — текстовый pill "AISOLUTIONCRM" заменён на полный
+  `logo-wordmark.png` над заголовком.
+- Найдены и исправлены 4 места с захардкоженным `text-[#04121a]`/
+  `text-[#04160f]` (тёмный текст, настроенный под яркий неоновый акцент
+  старой тёмной темы) — заменены на `text-white`, т.к. новый `--accent`
+  (#0B7FE8) и `--success` (#059669) достаточно насыщенные для белого текста
+  поверх них: `app/leads/page.tsx` (2 места), `app/files/page.tsx` (1),
+  `app/login/page.tsx` (кнопка входа).
+
+**Инцидент в процессе (Colima, не связан с кодом):** при пересборке
+frontend-контейнера словил `input/output error` на уровне containerd —
+диск Colima VM завис в плохом состоянии, следом и `postgres` показал
+`unhealthy`. Исправлено через `colima stop && colima start` (мягкий
+перезапуск VM, не `colima delete` — данные тома `crm_postgres_data` не
+затронуты) — после рестарта `docker compose up -d` поднял всё чисто,
+проверено: founder-юзер на месте, `/health` → 200. Записываю как известное
+ограничение Colima на этой машине — при похожих I/O-ошибках сначала
+`colima stop/start`, не пересоздавать VM.
+
+**Self-check:** `tsc --noEmit` и `npm run build` — чисто, `/icon.png`
+подхватился в build output. Живая проверка в браузере через
+claude-in-chrome не докручена до конца — расширение перестало отвечать
+(тайм-ауты на `tabs_context_mcp`) после серии навигаций; логи
+frontend-контейнера показывают, что все роуты (`/login`, `/dashboard`,
+`/leads`, `/finance`, `/files`, `/tasks`, `/analytics`, `/icon.png`) отдают
+200 без ошибок компиляции. **Founder: глянь глазами, что светлая тема и лого
+реально смотрятся как надо** — это единственный пункт из фарша, который я
+не подтвердил визуально сам.

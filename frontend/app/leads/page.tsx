@@ -142,7 +142,7 @@ export default function LeadsPage() {
             onClick={() => setFilter(f.key)}
             className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
               filter === f.key
-                ? "bg-accent text-[#04121a]"
+                ? "bg-accent text-white"
                 : "bg-surface text-ink-dim hover:text-ink"
             }`}
           >
@@ -181,7 +181,7 @@ export default function LeadsPage() {
                   {lead.owner_id === null && (
                     <button
                       onClick={() => claim(lead.id)}
-                      className="w-fit rounded-full bg-accent px-3 py-1 text-xs font-semibold text-[#04121a] transition hover:bg-accent-strong"
+                      className="w-fit rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white transition hover:bg-accent-strong"
                     >
                       Взять в работу
                     </button>
@@ -189,7 +189,7 @@ export default function LeadsPage() {
                   {lead.status === "won" && canEdit(lead) && (
                     <button
                       onClick={() => convertToProject(lead)}
-                      className="w-fit rounded-full bg-success/90 px-3 py-1 text-xs font-semibold text-[#04160f] transition hover:bg-success"
+                      className="w-fit rounded-full bg-success/90 px-3 py-1 text-xs font-semibold text-white transition hover:bg-success"
                     >
                       Создать проект
                     </button>

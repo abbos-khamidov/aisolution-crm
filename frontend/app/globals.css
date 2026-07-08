@@ -3,27 +3,29 @@
 @tailwind utilities;
 
 :root {
-  --bg: #070a13;
-  --bg-elevated: #0d1220;
-  --surface: #10162a;
-  --surface-2: #161d36;
-  --border: #232c4a;
-  --border-bright: #2f3a60;
-  --text: #eef1fb;
-  --text-dim: #929cbd;
-  --text-faint: #626e91;
+  /* Matches the real aisolution.uz light theme tokens (app/globals.css in
+     the website repo) so the CRM reads as the same product, not a reskin. */
+  --bg: #f8fafc;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --border: rgba(15, 23, 42, 0.1);
+  --border-bright: rgba(15, 23, 42, 0.18);
+  --text: #0f172a;
+  --text-dim: #475569;
+  --text-faint: #64748b;
 
-  --accent: #2dd4ee;
-  --accent-soft: rgba(45, 212, 238, 0.14);
-  --accent-strong: #7ef3ff;
-  --spark: #ff7a45;
-  --spark-soft: rgba(255, 122, 69, 0.16);
-  --success: #34d399;
-  --success-soft: rgba(52, 211, 153, 0.14);
-  --danger: #fb7185;
-  --danger-soft: rgba(251, 113, 133, 0.14);
+  --accent: #0b7fe8;
+  --accent-soft: rgba(11, 127, 232, 0.12);
+  --accent-strong: #0b4f9e;
+  --spark: #f59e0b;
+  --spark-soft: rgba(245, 158, 11, 0.14);
+  --success: #059669;
+  --success-soft: rgba(5, 150, 105, 0.12);
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.12);
 
-  --shadow-glow: 0 0 0 1px var(--border), 0 20px 60px -20px rgba(45, 212, 238, 0.25);
+  --shadow-glow: 0 0 0 1px var(--border), 0 20px 50px -24px rgba(11, 127, 232, 0.28);
 }
 
 * {
@@ -31,7 +33,7 @@
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
@@ -51,9 +53,10 @@ h1, h2, h3, h4, .font-display {
   font-feature-settings: "tnum";
 }
 
-/* Ambient backdrop: two slow-drifting radial blobs + faint grain. Reused
-   across auth and dashboard shells for a consistent "atmosphere" instead of
-   flat solid backgrounds. */
+/* Ambient backdrop: soft drifting radial mesh + faint grain — same idea as
+   the website's --gradient-mesh (low-opacity blue radials on off-white),
+   not the bold glowing blobs the old dark theme used, which would look
+   washed out on a light background. */
 .atmosphere {
   position: fixed;
   inset: 0;
@@ -68,7 +71,7 @@ h1, h2, h3, h4, .font-display {
   position: absolute;
   border-radius: 9999px;
   filter: blur(90px);
-  opacity: 0.5;
+  opacity: 0.16;
 }
 
 .atmosphere::before {
@@ -86,7 +89,7 @@ h1, h2, h3, h4, .font-display {
   bottom: -200px;
   right: -140px;
   background: radial-gradient(circle, var(--spark) 0%, transparent 70%);
-  opacity: 0.35;
+  opacity: 0.1;
   animation: drift-b 26s ease-in-out infinite alternate;
 }
 
@@ -95,8 +98,8 @@ h1, h2, h3, h4, .font-display {
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  opacity: 0.05;
-  mix-blend-mode: overlay;
+  opacity: 0.025;
+  mix-blend-mode: multiply;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
@@ -132,7 +135,7 @@ h1, h2, h3, h4, .font-display {
 
 ::selection {
   background: var(--accent);
-  color: #04121a;
+  color: #ffffff;
 }
 
 ::-webkit-scrollbar {

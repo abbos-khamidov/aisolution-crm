@@ -90,7 +90,7 @@ export default function FilesPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => review(f.id, "approve")}
-                  className="flex items-center gap-1 rounded-full bg-success/90 px-3 py-1 text-xs font-semibold text-[#04160f] transition hover:bg-success"
+                  className="flex items-center gap-1 rounded-full bg-success/90 px-3 py-1 text-xs font-semibold text-white transition hover:bg-success"
                 >
                   <Check size={13} /> Принять
                 </button>

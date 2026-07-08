@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -45,9 +46,7 @@ export default function Sidebar({ role }: { role: string | null }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-20 flex w-60 flex-col border-r border-border bg-bg-elevated/90 backdrop-blur-xl">
       <div className="flex items-center gap-2 px-5 py-6">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent font-display text-sm font-bold text-[#04121a]">
-          ai
-        </span>
+        <Image src="/logo.png" alt="AI Solution" width={32} height={32} className="rounded-lg" />
         <span className="font-display text-sm font-semibold tracking-tight text-ink">
           aisolutioncrm
         </span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { setTokens } from "@/lib/api";
 import { decodeJwt } from "@/lib/jwt";
@@ -92,10 +93,14 @@ export default function LoginPage() {
       <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center gap-10 px-6 py-16 lg:flex-row lg:items-stretch lg:gap-16">
         {/* Left: brand / pitch panel */}
         <div className="flex max-w-md flex-1 flex-col justify-center rise-in" style={{ animationDelay: "0ms" }}>
-          <span className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-border-bright bg-surface/60 px-3 py-1 text-xs font-medium tracking-wide text-accent-strong">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-            AISOLUTIONCRM
-          </span>
+          <Image
+            src="/logo-wordmark.png"
+            alt="AI Solution"
+            width={220}
+            height={49}
+            className="mb-6 h-auto w-[220px]"
+            priority
+          />
           <h1 className="font-display text-4xl font-bold leading-[1.05] text-ink sm:text-5xl">
             Лиды не ждут.
             <br />
@@ -163,7 +168,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-[#04121a] transition hover:bg-accent-strong active:scale-[0.98] disabled:opacity-60"
+              className="mt-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-strong active:scale-[0.98] disabled:opacity-60"
             >
               {loading ? "Секунду…" : "Войти"}
             </button>
