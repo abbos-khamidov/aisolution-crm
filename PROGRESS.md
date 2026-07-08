@@ -534,3 +534,34 @@ handler'а) **плюс** независимая проверка `message.chat.t
 личные сообщения (не в группу) — должен прийти welcome-текст на `/start`, а
 на любое следующее сообщение — лид должен появиться в CRM с
 round-robin-назначенным owner'ом и ack-ответ "Спасибо! Заявка принята...".
+
+## Интеграция сайта aisolution.uz → CRM (2026-07-08)
+Отдельный репозиторий `~/Desktop/aisolution/aisolution website` (живой,
+задеплоенный на Vercel + отдельный Django-бэкенд) — разрешение на точечную
+правку получено явно (`[[code-exception-website]]`). Изменения строго
+аддитивные, по согласованному плану:
+- `backend/leads/services.py`: новая `send_to_crm(payload) -> (ok, error)`,
+  тот же паттерн, что `send_to_telegram`/`send_email_fallback` — POST на
+  `{CRM_API_URL}/leads/webhook/website`, поля source/service/language/
+  company/consent уходят в `utm` (как и Instagram/Facebook в самой CRM).
+  Best-effort: любая ошибка только логируется (`logger.warning`), не влияет
+  на существующий статус доставки (delivered/partial/failed).
+- `backend/leads/views.py`: один вызов `send_to_crm(data)` добавлен в
+  `_process_submission()` рядом с существующими telegram/email вызовами —
+  существующая логика статусов не тронута.
+- `backend/.env.example` + локальный `backend/.env` (gitignored): новая
+  `CRM_API_URL` (локально `http://localhost:8000`).
+- Проверено: `send_to_crm()` вызвана напрямую (без полного Django dev-server —
+  локальная Postgres-роль для этого проекта не настроена на этой машине,
+  а сам сервис не зависит от Django ORM) против живого docker-compose CRM —
+  лид успешно создан (`ok=True`), проверен в БД со всеми полями и utm,
+  затем удалён как тестовые данные.
+- Закоммичено локально в ветке `main` (родная ветка этого репо), **не
+  запушено** — прод-деплой (push + настройка `CRM_API_URL` на хостинге
+  Django-бэкенда) требует отдельного подтверждения founder'а.
+
+**Не забыть:** production Django-бэкенд не сможет достучаться до
+`localhost:8000` — для реального прод-трафика нужен публичный URL CRM
+backend (сейчас CRM крутится только локально через docker-compose на этой
+машине) плюс `CRM_API_URL`, выставленный в переменных окружения хостинга
+Django-бэкенда, а не только в локальном `.env`.
