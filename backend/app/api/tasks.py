@@ -4,10 +4,17 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.core.deps import CurrentUser, get_current_user, verify_internal_secret
+from app.core.deps import (
+    CurrentUser,
+    get_current_user,
+    require_founder,
+    require_staff_role,
+    verify_internal_secret,
+)
 from app.db.bot_notify import push_task_to_bot
 from app.db.events import record_event
 from app.db.pool import get_pool
+from app.db.visibility import get_visible_project_ids
 
 router = APIRouter(tags=["tasks"])
 
@@ -47,7 +54,7 @@ def _can_edit_task(user: CurrentUser, task) -> bool:
 
 
 @router.post("/tasks", status_code=status.HTTP_201_CREATED)
-async def create_task(body: TaskIn, user: CurrentUser = Depends(get_current_user)) -> dict:
+async def create_task(body: TaskIn, user: CurrentUser = Depends(require_staff_role)) -> dict:
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -95,9 +102,27 @@ async def list_tasks(
     conditions = ["deleted_at IS NULL"]
     params: list = []
 
-    if assigned_to is not None:
-        params.append(assigned_to)
+    if user.role == "student":
+        # Hard isolation regardless of query params (CRM_SPEC.md: student only
+        # ever sees their own tasks) — any ?assigned_to= from a student is
+        # ignored rather than honored, so they can't probe other user ids.
+        params.append(user.id)
         conditions.append(f"assigned_to = ${len(params)}")
+    else:
+        if assigned_to is not None:
+            params.append(assigned_to)
+            conditions.append(f"assigned_to = ${len(params)}")
+        if user.role != "founder":
+            visible_project_ids = await get_visible_project_ids(pool, user)
+            params.append(user.id)
+            mine_idx = len(params)
+            params.append(visible_project_ids or [])
+            projects_idx = len(params)
+            conditions.append(
+                f"(assigned_to = ${mine_idx} OR created_by = ${mine_idx} "
+                f"OR project_id = ANY(${projects_idx}::bigint[]))"
+            )
+
     if status_filter is not None:
         params.append(status_filter)
         conditions.append(f"status = ${len(params)}")
@@ -116,7 +141,7 @@ async def list_tasks(
 
 
 @router.get("/tasks/overdue-dashboard")
-async def overdue_dashboard(user: CurrentUser = Depends(get_current_user)) -> list[dict]:
+async def overdue_dashboard(user: CurrentUser = Depends(require_founder)) -> list[dict]:
     pool = get_pool()
     rows = await pool.fetch(
         """
@@ -259,3 +284,52 @@ async def bot_complete_task(task_id: int, body: BotCompleteIn) -> dict:
                     {"from": task["status"], "to": "done", "via": "telegram_bot"},
                 )
     return dict(row)
+
+
+class TelegramLoginConfirmIn(BaseModel):
+    token: str
+    telegram_id: int
+
+
+@internal_router.post("/telegram-login/confirm")
+async def bot_confirm_telegram_login(body: TelegramLoginConfirmIn) -> dict:
+    """Called by the bot's /start <token> handler (phase 6 student login,
+    see PROGRESS.md > Decisions). Binds the one-time token to whichever user
+    row already has this telegram_id — students are pre-registered by the
+    founder with their telegram_id set, this endpoint never creates a user.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            token_row = await conn.fetchrow(
+                "SELECT status, expires_at FROM login_tokens WHERE token = $1 FOR UPDATE",
+                body.token,
+            )
+            if token_row is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown token")
+            if token_row["status"] != "pending":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, detail="Token is not pending"
+                )
+
+            user = await conn.fetchrow(
+                "SELECT id FROM users WHERE telegram_id = $1 AND is_active AND deleted_at IS NULL",
+                body.telegram_id,
+            )
+            if user is None:
+                await conn.execute(
+                    "UPDATE login_tokens SET status = 'rejected' WHERE token = $1", body.token
+                )
+                return {"confirmed": False, "reason": "not_registered"}
+
+            await conn.execute(
+                """
+                UPDATE login_tokens
+                SET status = 'confirmed', user_id = $1, telegram_id = $2, confirmed_at = now()
+                WHERE token = $3
+                """,
+                user["id"],
+                body.telegram_id,
+                body.token,
+            )
+    return {"confirmed": True}

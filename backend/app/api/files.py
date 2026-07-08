@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
-from app.core.deps import CurrentUser, get_current_user
+from app.core.deps import CurrentUser, require_founder, require_staff_role
 from app.core.storage import upload_file
 from app.db.events import record_event
 from app.db.pool import get_pool
+from app.db.visibility import get_visible_project_ids, require_project_visible
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -23,7 +24,7 @@ async def upload_file_endpoint(
     file: UploadFile,
     project_id: int | None = Form(None),
     lead_id: int | None = Form(None),
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_staff_role),
 ) -> dict:
     if (project_id is None) == (lead_id is None):
         raise HTTPException(
@@ -32,6 +33,23 @@ async def upload_file_endpoint(
         )
 
     pool = get_pool()
+
+    if project_id is not None:
+        await require_project_visible(pool, user, project_id)
+    else:
+        lead = await pool.fetchrow(
+            "SELECT id, owner_id FROM leads WHERE id = $1 AND deleted_at IS NULL", lead_id
+        )
+        if lead is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+        if user.role not in ("founder", "manager") or (
+            user.role != "founder" and lead["owner_id"] != user.id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the lead owner or founder can attach files to this lead",
+            )
+
     async with pool.acquire() as conn:
         async with conn.transaction():
             if project_id is not None:
@@ -74,7 +92,7 @@ async def list_files(
     status_filter: str | None = None,
     project_id: int | None = None,
     lead_id: int | None = None,
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_staff_role),
 ) -> list[dict]:
     pool = get_pool()
     conditions = ["deleted_at IS NULL"]
@@ -90,6 +108,17 @@ async def list_files(
         params.append(lead_id)
         conditions.append(f"lead_id = ${len(params)}")
 
+    if user.role != "founder":
+        visible_ids = await get_visible_project_ids(pool, user)
+        params.append(visible_ids or [])
+        project_clause_idx = len(params)
+        params.append(user.id)
+        own_lead_idx = len(params)
+        conditions.append(
+            f"(project_id = ANY(${project_clause_idx}::bigint[]) "
+            f"OR lead_id IN (SELECT id FROM leads WHERE owner_id = ${own_lead_idx}))"
+        )
+
     query = (
         f"SELECT {FILE_FIELDS} FROM files WHERE {' AND '.join(conditions)} "
         "ORDER BY created_at DESC"
@@ -99,11 +128,6 @@ async def list_files(
 
 
 async def _review(file_id: int, user: CurrentUser, new_status: str, comment: str | None) -> dict:
-    if user.role != "founder":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Only founder can review files"
-        )
-
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -139,13 +163,13 @@ async def _review(file_id: int, user: CurrentUser, new_status: str, comment: str
 
 @router.post("/{file_id}/approve")
 async def approve_file(
-    file_id: int, body: ReviewIn, user: CurrentUser = Depends(get_current_user)
+    file_id: int, body: ReviewIn, user: CurrentUser = Depends(require_founder)
 ) -> dict:
     return await _review(file_id, user, "approved", body.comment)
 
 
 @router.post("/{file_id}/reject")
 async def reject_file(
-    file_id: int, body: ReviewIn, user: CurrentUser = Depends(get_current_user)
+    file_id: int, body: ReviewIn, user: CurrentUser = Depends(require_founder)
 ) -> dict:
     return await _review(file_id, user, "rejected", body.comment)

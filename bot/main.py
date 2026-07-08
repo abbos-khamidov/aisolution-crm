@@ -15,7 +15,7 @@ import logging
 
 import httpx
 from aiogram import Bot, Dispatcher, F
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -55,6 +55,33 @@ async def complete_task_in_crm(telegram_id: int, task_id: int) -> bool:
             headers={"X-Internal-Secret": settings.internal_secret},
         )
     return resp.status_code == 200
+
+
+async def confirm_telegram_login(token: str, telegram_id: int) -> bool:
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.post(
+            f"{settings.crm_api_url}/internal/bot/telegram-login/confirm",
+            json={"token": token, "telegram_id": telegram_id},
+            headers={"X-Internal-Secret": settings.internal_secret},
+        )
+    return resp.status_code == 200 and resp.json().get("confirmed") is True
+
+
+@dp.message(CommandStart(deep_link=True))
+async def on_start_with_login_token(message: Message, command: CommandObject) -> None:
+    token = command.args
+    if not token or not message.from_user:
+        await message.answer("Ссылка для входа недействительна.")
+        return
+
+    ok = await confirm_telegram_login(token, message.from_user.id)
+    if ok:
+        await message.answer("Вход подтверждён! Вернитесь на сайт aisolutioncrm.")
+    else:
+        await message.answer(
+            "Не удалось войти — ссылка устарела или вы не зарегистрированы в CRM. "
+            "Обратитесь к founder'у."
+        )
 
 
 @dp.message(Command("start"))

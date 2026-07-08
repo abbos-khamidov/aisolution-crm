@@ -14,7 +14,7 @@ async def db():
     conn = await asyncpg.connect(settings.database_url)
     await conn.execute(
         "TRUNCATE leads, events, users, clients, projects, project_members, milestones, "
-        "finance_entries, files, tasks RESTART IDENTITY CASCADE;"
+        "finance_entries, files, tasks, login_tokens RESTART IDENTITY CASCADE;"
     )
     try:
         yield conn

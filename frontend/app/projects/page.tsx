@@ -37,12 +37,18 @@ export default function ProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [showAll, setShowAll] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     const res = await apiFetch("/projects");
     if (res.status === 401) {
       clearTokens();
       router.push("/login");
+      return;
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.detail ?? `Ошибка ${res.status}`);
       return;
     }
     setProjects(await res.json());
@@ -77,6 +83,8 @@ export default function ProjectsPage() {
           </button>
         </div>
       </div>
+
+      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((p) => (

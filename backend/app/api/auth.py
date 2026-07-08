@@ -1,7 +1,11 @@
+import datetime as dt
+import secrets
+
 import jwt
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
+from app.core.config import settings
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -73,3 +77,71 @@ async def refresh(body: RefreshRequest) -> AccessTokenResponse:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
     return AccessTokenResponse(access_token=create_access_token(row["id"], row["role"]))
+
+
+class TelegramLoginStartResponse(BaseModel):
+    token: str
+    deep_link: str
+    expires_at: dt.datetime
+
+
+@router.post("/telegram/start", response_model=TelegramLoginStartResponse)
+async def telegram_login_start() -> TelegramLoginStartResponse:
+    """Step 1 of the student login flow (CRM_SPEC.md: deep-link + one-time
+    token, not password). Frontend calls this, shows the deep_link (as a
+    button/QR), then polls /auth/telegram/{token}/poll until confirmed.
+    """
+    token = secrets.token_urlsafe(24)
+    expires_at = dt.datetime.now(dt.UTC) + dt.timedelta(
+        minutes=settings.telegram_login_token_ttl_minutes
+    )
+    pool = get_pool()
+    await pool.execute(
+        "INSERT INTO login_tokens (token, expires_at) VALUES ($1, $2)", token, expires_at
+    )
+    deep_link = f"https://t.me/{settings.telegram_bot_username}?start={token}"
+    return TelegramLoginStartResponse(token=token, deep_link=deep_link, expires_at=expires_at)
+
+
+class TelegramPollResponse(BaseModel):
+    status: str
+    access_token: str | None = None
+    refresh_token: str | None = None
+
+
+@router.get("/telegram/{token}/poll", response_model=TelegramPollResponse)
+async def telegram_login_poll(token: str) -> TelegramPollResponse:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                "SELECT status, user_id, expires_at FROM login_tokens WHERE token = $1 FOR UPDATE",
+                token,
+            )
+            if row is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown token")
+            if row["status"] == "pending" and row["expires_at"] < dt.datetime.now(dt.UTC):
+                raise HTTPException(status_code=status.HTTP_410_GONE, detail="Token expired")
+            if row["status"] in ("pending", "rejected"):
+                return TelegramPollResponse(status=row["status"])
+            if row["status"] == "consumed":
+                raise HTTPException(status_code=status.HTTP_410_GONE, detail="Token already used")
+
+            # status == 'confirmed': issue tokens, single-use from here on
+            user = await conn.fetchrow(
+                "SELECT id, role FROM users WHERE id = $1 AND is_active AND deleted_at IS NULL",
+                row["user_id"],
+            )
+            if user is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+            await conn.execute(
+                "UPDATE login_tokens SET status = 'consumed', consumed_at = now() WHERE token = $1",
+                token,
+            )
+
+    return TelegramPollResponse(
+        status="confirmed",
+        access_token=create_access_token(user["id"], user["role"]),
+        refresh_token=create_refresh_token(user["id"], user["role"]),
+    )

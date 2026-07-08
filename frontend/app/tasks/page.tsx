@@ -15,12 +15,18 @@ interface OverdueRow {
 export default function TasksPage() {
   const router = useRouter();
   const [rows, setRows] = useState<OverdueRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     const res = await apiFetch("/tasks/overdue-dashboard");
     if (res.status === 401) {
       clearTokens();
       router.push("/login");
+      return;
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.detail ?? `Ошибка ${res.status}`);
       return;
     }
     setRows(await res.json());
@@ -39,6 +45,8 @@ export default function TasksPage() {
           Проекты
         </Link>
       </div>
+
+      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       <table className="w-full border-collapse text-sm">
         <thead>

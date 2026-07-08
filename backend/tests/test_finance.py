@@ -56,6 +56,7 @@ async def test_paid_with_paid_at_succeeds(client, db):
 @pytest.mark.asyncio
 async def test_summary_computes_invoiced_paid_overdue(client, db):
     _, token = await make_user(db, "Manager", "m@example.com", "manager")
+    _, founder_token = await make_user(db, "Founder", "f@example.com", "founder")
     client_id, project_id = await _project(client, token)
 
     paid_entry = await client.post(
@@ -81,7 +82,10 @@ async def test_summary_computes_invoiced_paid_overdue(client, db):
         headers=auth_headers(token),
     )
 
-    summary = (await client.get("/finance/summary", headers=auth_headers(token))).json()
+    forbidden = await client.get("/finance/summary", headers=auth_headers(token))
+    assert forbidden.status_code == 403
+
+    summary = (await client.get("/finance/summary", headers=auth_headers(founder_token))).json()
     row = next(r for r in summary["by_client"] if r["client_id"] == client_id)
     assert float(row["invoiced"]) == 800.0
     assert float(row["paid"]) == 500.0

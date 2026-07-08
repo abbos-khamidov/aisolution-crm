@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     # Internal bot integration (see PROGRESS.md > Decisions, phase 5).
     internal_bot_secret: str = "dev-internal-bot-secret"
     bot_push_url: str | None = None
+    telegram_bot_username: str = "aisolutioncrm_bot"
+    telegram_login_token_ttl_minutes: int = 10
 
 
 settings = Settings()

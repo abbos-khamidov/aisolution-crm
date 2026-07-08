@@ -27,6 +27,7 @@ interface Summary {
 export default function FinancePage() {
   const router = useRouter();
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -34,6 +35,11 @@ export default function FinancePage() {
       if (res.status === 401) {
         clearTokens();
         router.push("/login");
+        return;
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.detail ?? `Ошибка ${res.status}`);
         return;
       }
       setSummary(await res.json());
@@ -54,6 +60,8 @@ export default function FinancePage() {
           </Link>
         </div>
       </div>
+
+      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       {summary && (
         <>

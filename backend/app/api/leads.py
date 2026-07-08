@@ -6,7 +6,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
-from app.core.deps import CurrentUser, get_current_user
+from app.core.deps import CurrentUser, require_sales_role
 from app.db.events import record_event
 from app.db.pool import get_pool
 
@@ -78,7 +78,7 @@ async def website_webhook(body: WebsiteLeadIn) -> dict:
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_manual_lead(
-    body: ManualLeadIn, user: CurrentUser = Depends(get_current_user)
+    body: ManualLeadIn, user: CurrentUser = Depends(require_sales_role)
 ) -> dict:
     return await _create_lead(body.source, body, actor_id=user.id)
 
@@ -88,7 +88,7 @@ async def list_leads(
     status_filter: str | None = Query(None, alias="status"),
     source: str | None = None,
     owner_id: int | None = None,
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_sales_role),
 ) -> list[dict]:
     pool = get_pool()
     conditions = ["deleted_at IS NULL"]
@@ -104,6 +104,13 @@ async def list_leads(
         params.append(owner_id)
         conditions.append(f"owner_id = ${len(params)}")
 
+    if user.role != "founder":
+        # manager: unclaimed queue + own leads only (CRM_SPEC.md section 6) —
+        # applied as an extra AND, so a manager can't probe other owners'
+        # leads via ?owner_id= either.
+        params.append(user.id)
+        conditions.append(f"(owner_id IS NULL OR owner_id = ${len(params)})")
+
     query = (
         f"SELECT {LEAD_FIELDS} FROM leads WHERE {' AND '.join(conditions)} "
         "ORDER BY created_at DESC"
@@ -113,7 +120,7 @@ async def list_leads(
 
 
 @router.post("/{lead_id}/claim")
-async def claim_lead(lead_id: int, user: CurrentUser = Depends(get_current_user)) -> dict:
+async def claim_lead(lead_id: int, user: CurrentUser = Depends(require_sales_role)) -> dict:
     pool = get_pool()
     is_founder = user.role == "founder"
 
@@ -150,7 +157,7 @@ async def claim_lead(lead_id: int, user: CurrentUser = Depends(get_current_user)
 
 @router.patch("/{lead_id}")
 async def patch_lead(
-    lead_id: int, body: LeadPatch, user: CurrentUser = Depends(get_current_user)
+    lead_id: int, body: LeadPatch, user: CurrentUser = Depends(require_sales_role)
 ) -> dict:
     if body.status == "lost" and not body.loss_reason:
         raise HTTPException(
@@ -234,7 +241,7 @@ class ConvertIn(BaseModel):
 
 @router.post("/{lead_id}/convert", status_code=status.HTTP_201_CREATED)
 async def convert_lead(
-    lead_id: int, body: ConvertIn, user: CurrentUser = Depends(get_current_user)
+    lead_id: int, body: ConvertIn, user: CurrentUser = Depends(require_sales_role)
 ) -> dict:
     pool = get_pool()
     is_founder = user.role == "founder"

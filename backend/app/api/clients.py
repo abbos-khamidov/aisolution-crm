@@ -4,7 +4,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from app.core.deps import CurrentUser, get_current_user
+from app.core.deps import CurrentUser, require_staff_role
 from app.db.pool import get_pool
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -19,7 +19,7 @@ class ClientIn(BaseModel):
 
 
 @router.post("", status_code=201)
-async def create_client(body: ClientIn, user: CurrentUser = Depends(get_current_user)) -> dict:
+async def create_client(body: ClientIn, user: CurrentUser = Depends(require_staff_role)) -> dict:
     pool = get_pool()
     row = await pool.fetchrow(
         f"""
@@ -35,7 +35,7 @@ async def create_client(body: ClientIn, user: CurrentUser = Depends(get_current_
 
 
 @router.get("")
-async def list_clients(user: CurrentUser = Depends(get_current_user)) -> list[dict]:
+async def list_clients(user: CurrentUser = Depends(require_staff_role)) -> list[dict]:
     pool = get_pool()
     rows = await pool.fetch(
         f"SELECT {CLIENT_FIELDS} FROM clients WHERE deleted_at IS NULL ORDER BY created_at DESC"

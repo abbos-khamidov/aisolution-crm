@@ -64,8 +64,13 @@ async def test_overdue_dashboard_groups_by_assignee(client, db):
         headers=auth_headers(founder_token),
     )
 
+    forbidden = await client.get(
+        "/tasks/overdue-dashboard", headers=auth_headers(student_token)
+    )
+    assert forbidden.status_code == 403
+
     dashboard = (
-        await client.get("/tasks/overdue-dashboard", headers=auth_headers(student_token))
+        await client.get("/tasks/overdue-dashboard", headers=auth_headers(founder_token))
     ).json()
     assert len(dashboard) == 1
     assert dashboard[0]["assigned_to"] == student_id

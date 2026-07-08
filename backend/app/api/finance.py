@@ -5,9 +5,10 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.core.deps import CurrentUser, get_current_user
+from app.core.deps import CurrentUser, require_founder, require_staff_role
 from app.db.events import record_event
 from app.db.pool import get_pool
+from app.db.visibility import require_project_visible
 
 router = APIRouter(tags=["finance"])
 
@@ -38,9 +39,10 @@ class FinanceEntryPatch(BaseModel):
 
 @router.post("/projects/{project_id}/finance-entries", status_code=status.HTTP_201_CREATED)
 async def create_finance_entry(
-    project_id: int, body: FinanceEntryIn, user: CurrentUser = Depends(get_current_user)
+    project_id: int, body: FinanceEntryIn, user: CurrentUser = Depends(require_staff_role)
 ) -> dict:
     pool = get_pool()
+    await require_project_visible(pool, user, project_id)
     async with pool.acquire() as conn:
         async with conn.transaction():
             project = await conn.fetchrow(
@@ -72,9 +74,10 @@ async def create_finance_entry(
 
 @router.get("/projects/{project_id}/finance-entries")
 async def list_finance_entries(
-    project_id: int, user: CurrentUser = Depends(get_current_user)
+    project_id: int, user: CurrentUser = Depends(require_staff_role)
 ) -> list[dict]:
     pool = get_pool()
+    await require_project_visible(pool, user, project_id)
     rows = await pool.fetch(
         f"SELECT {FINANCE_FIELDS} FROM finance_entries "
         "WHERE project_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC",
@@ -85,19 +88,25 @@ async def list_finance_entries(
 
 @router.patch("/finance-entries/{entry_id}")
 async def patch_finance_entry(
-    entry_id: int, body: FinanceEntryPatch, user: CurrentUser = Depends(get_current_user)
+    entry_id: int, body: FinanceEntryPatch, user: CurrentUser = Depends(require_staff_role)
 ) -> dict:
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             current = await conn.fetchrow(
-                "SELECT id, status, paid_at FROM finance_entries "
-                "WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
+                "SELECT fe.id, fe.status, fe.paid_at, p.owner_id FROM finance_entries fe "
+                "JOIN projects p ON p.id = fe.project_id "
+                "WHERE fe.id = $1 AND fe.deleted_at IS NULL FOR UPDATE OF fe",
                 entry_id,
             )
             if current is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND, detail="Finance entry not found"
+                )
+            if user.role != "founder" and current["owner_id"] != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the project owner or founder can modify finance entries",
                 )
 
             new_status = body.status if body.status is not None else current["status"]
@@ -143,7 +152,7 @@ async def patch_finance_entry(
 
 
 @router.get("/finance/summary")
-async def finance_summary(user: CurrentUser = Depends(get_current_user)) -> dict:
+async def finance_summary(user: CurrentUser = Depends(require_founder)) -> dict:
     pool = get_pool()
 
     by_client = await pool.fetch(

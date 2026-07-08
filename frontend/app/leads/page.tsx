@@ -40,6 +40,11 @@ export default function LeadsPage() {
       router.push("/login");
       return;
     }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.detail ?? `Ошибка ${res.status}`);
+      return;
+    }
     const data: Lead[] = await res.json();
     setLeads(data);
   }

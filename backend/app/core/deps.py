@@ -48,6 +48,30 @@ async def require_founder(user: CurrentUser = Depends(get_current_user)) -> Curr
     return user
 
 
+async def require_staff_role(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    """Projects/finance/files are internal team surfaces. Students only get
+    their own tasks (CRM_SPEC.md section 6: "student — только назначенные
+    таски... веб — read-only минимальный список своих тасков").
+    """
+    if user.role == "student":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Students cannot access this resource"
+        )
+    return user
+
+
+async def require_sales_role(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    """Leads are a sales concept (CRM_SPEC.md section 6): founder sees/does
+    everything, manager owns the sales pipeline. developer/student have no
+    business reason to touch leads at all.
+    """
+    if user.role not in ("founder", "manager"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Only founder or manager can access leads"
+        )
+    return user
+
+
 async def verify_internal_secret(x_internal_secret: str = Header(...)) -> None:
     """Auth for bot<->CRM internal endpoints. The bot is not a `users` row (it
     has no password) and never calls the JWT-protected endpoints, per

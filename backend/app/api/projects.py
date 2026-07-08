@@ -5,9 +5,10 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.core.deps import CurrentUser, get_current_user
+from app.core.deps import CurrentUser, require_staff_role
 from app.db.events import record_event
 from app.db.pool import get_pool
+from app.db.visibility import get_visible_project_ids, require_project_visible
 
 router = APIRouter(tags=["projects"])
 
@@ -91,8 +92,13 @@ def _can_edit_project(user: CurrentUser, owner_id: int | None) -> bool:
 
 
 @router.post("/projects", status_code=status.HTTP_201_CREATED)
-async def create_project(body: ProjectIn, user: CurrentUser = Depends(get_current_user)) -> dict:
+async def create_project(body: ProjectIn, user: CurrentUser = Depends(require_staff_role)) -> dict:
     pool = get_pool()
+    # Default owner to the creator when unset — projects have no "unclaimed
+    # queue" like leads do, so an owner-less project created by a non-founder
+    # would otherwise be immediately invisible to them (see
+    # get_visible_project_ids: non-founders only see owner_id=me or member-of).
+    owner_id = body.owner_id if body.owner_id is not None else user.id
     async with pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
@@ -107,7 +113,7 @@ async def create_project(body: ProjectIn, user: CurrentUser = Depends(get_curren
                 body.name,
                 body.description,
                 body.stage,
-                body.owner_id,
+                owner_id,
                 body.start_date,
                 body.deadline,
                 body.budget_total,
@@ -124,7 +130,7 @@ async def list_projects(
     stage: str | None = None,
     owner_id: int | None = None,
     client_id: int | None = None,
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_staff_role),
 ) -> list[dict]:
     pool = get_pool()
     conditions = ["deleted_at IS NULL"]
@@ -140,6 +146,11 @@ async def list_projects(
         params.append(client_id)
         conditions.append(f"client_id = ${len(params)}")
 
+    visible_ids = await get_visible_project_ids(pool, user)
+    if visible_ids is not None:
+        params.append(visible_ids)
+        conditions.append(f"id = ANY(${len(params)}::bigint[])")
+
     query = (
         f"SELECT {PROJECT_FIELDS} FROM projects WHERE {' AND '.join(conditions)} "
         "ORDER BY created_at DESC"
@@ -149,8 +160,9 @@ async def list_projects(
 
 
 @router.get("/projects/{project_id}")
-async def get_project(project_id: int, user: CurrentUser = Depends(get_current_user)) -> dict:
+async def get_project(project_id: int, user: CurrentUser = Depends(require_staff_role)) -> dict:
     pool = get_pool()
+    await require_project_visible(pool, user, project_id)
     row = await pool.fetchrow(
         f"SELECT {PROJECT_FIELDS} FROM projects WHERE id = $1 AND deleted_at IS NULL", project_id
     )
@@ -161,7 +173,7 @@ async def get_project(project_id: int, user: CurrentUser = Depends(get_current_u
 
 @router.patch("/projects/{project_id}")
 async def patch_project(
-    project_id: int, body: ProjectPatch, user: CurrentUser = Depends(get_current_user)
+    project_id: int, body: ProjectPatch, user: CurrentUser = Depends(require_staff_role)
 ) -> dict:
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -215,7 +227,7 @@ async def patch_project(
 
 @router.post("/projects/{project_id}/members", status_code=status.HTTP_201_CREATED)
 async def add_member(
-    project_id: int, body: MemberIn, user: CurrentUser = Depends(get_current_user)
+    project_id: int, body: MemberIn, user: CurrentUser = Depends(require_staff_role)
 ) -> dict:
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -251,9 +263,10 @@ async def add_member(
 
 @router.get("/projects/{project_id}/members")
 async def list_members(
-    project_id: int, user: CurrentUser = Depends(get_current_user)
+    project_id: int, user: CurrentUser = Depends(require_staff_role)
 ) -> list[dict]:
     pool = get_pool()
+    await require_project_visible(pool, user, project_id)
     rows = await pool.fetch(
         "SELECT project_id, user_id, role_on_project, created_at FROM project_members "
         "WHERE project_id = $1 AND deleted_at IS NULL",
@@ -267,7 +280,7 @@ async def list_members(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def remove_member(
-    project_id: int, member_user_id: int, user: CurrentUser = Depends(get_current_user)
+    project_id: int, member_user_id: int, user: CurrentUser = Depends(require_staff_role)
 ) -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -291,7 +304,7 @@ async def remove_member(
 
 @router.post("/projects/{project_id}/milestones", status_code=status.HTTP_201_CREATED)
 async def create_milestone(
-    project_id: int, body: MilestoneIn, user: CurrentUser = Depends(get_current_user)
+    project_id: int, body: MilestoneIn, user: CurrentUser = Depends(require_staff_role)
 ) -> dict:
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -320,9 +333,10 @@ async def create_milestone(
 
 @router.get("/projects/{project_id}/milestones")
 async def list_milestones(
-    project_id: int, user: CurrentUser = Depends(get_current_user)
+    project_id: int, user: CurrentUser = Depends(require_staff_role)
 ) -> list[dict]:
     pool = get_pool()
+    await require_project_visible(pool, user, project_id)
     rows = await pool.fetch(
         "SELECT id, project_id, title, due_date, status, deliverable_file_id, created_at "
         "FROM milestones WHERE project_id = $1 AND deleted_at IS NULL ORDER BY due_date",
@@ -333,7 +347,7 @@ async def list_milestones(
 
 @router.patch("/milestones/{milestone_id}")
 async def patch_milestone(
-    milestone_id: int, body: MilestonePatch, user: CurrentUser = Depends(get_current_user)
+    milestone_id: int, body: MilestonePatch, user: CurrentUser = Depends(require_staff_role)
 ) -> dict:
     pool = get_pool()
     async with pool.acquire() as conn:

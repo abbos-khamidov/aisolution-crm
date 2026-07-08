@@ -33,6 +33,11 @@ export default function FilesPage() {
       router.push("/login");
       return;
     }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.detail ?? `Ошибка ${res.status}`);
+      return;
+    }
     setFiles(await res.json());
   }
 
