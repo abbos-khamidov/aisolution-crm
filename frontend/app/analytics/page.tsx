@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
+import { GroupedBarChart, type ChartColor } from "@/components/Charts";
 import { apiFetch, clearTokens } from "@/lib/api";
 
 interface FunnelRow {
@@ -32,6 +33,22 @@ interface StaleLeadRow {
   status: string;
   days_since_activity: number;
 }
+interface ManagerPerfRow {
+  user_id: number;
+  user_name: string;
+  leads_owned: number;
+  leads_won: number;
+  conversion_pct: string | null;
+  avg_first_response_hours: string | null;
+  revenue_paid: string;
+}
+interface ChannelOverTimeRow {
+  month: string;
+  source: string;
+  count: number;
+}
+
+const CHANNEL_COLORS: ChartColor[] = ["accent", "success", "spark", "danger"];
 
 function Section({
   title,
@@ -58,6 +75,8 @@ export default function AnalyticsPage() {
   const [lossReasons, setLossReasons] = useState<LossReasonRow[]>([]);
   const [teamLoad, setTeamLoad] = useState<TeamLoadRow[]>([]);
   const [staleLeads, setStaleLeads] = useState<StaleLeadRow[]>([]);
+  const [managerPerf, setManagerPerf] = useState<ManagerPerfRow[]>([]);
+  const [channelOverTime, setChannelOverTime] = useState<ChannelOverTimeRow[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -67,6 +86,8 @@ export default function AnalyticsPage() {
         "/analytics/loss-reasons",
         "/analytics/team-load",
         "/analytics/stale-leads",
+        "/analytics/manager-performance",
+        "/analytics/leads-by-channel-over-time",
       ];
       const results = await Promise.all(paths.map((p) => apiFetch(p)));
 
@@ -80,17 +101,28 @@ export default function AnalyticsPage() {
         return;
       }
 
-      const [funnelData, conversionData, lossData, loadData, staleData] = await Promise.all(
-        results.map((r) => r.json())
-      );
+      const [funnelData, conversionData, lossData, loadData, staleData, perfData, channelData] =
+        await Promise.all(results.map((r) => r.json()));
       setFunnel(funnelData.funnel);
       setConversion(conversionData);
       setLossReasons(lossData);
       setTeamLoad(loadData);
       setStaleLeads(staleData);
+      setManagerPerf(perfData);
+      setChannelOverTime(channelData);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const channelMonths = Array.from(new Set(channelOverTime.map((r) => r.month))).sort();
+  const channelSources = Array.from(new Set(channelOverTime.map((r) => r.source))).sort();
+  const channelSeries = channelSources.map((source, i) => ({
+    name: source,
+    color: CHANNEL_COLORS[i % CHANNEL_COLORS.length],
+    values: channelMonths.map(
+      (month) => channelOverTime.find((r) => r.month === month && r.source === source)?.count ?? 0
+    ),
+  }));
 
   return (
     <AppShell eyebrow="Цифры не врут" title="Аналитика">
@@ -169,6 +201,55 @@ export default function AnalyticsPage() {
               </tbody>
             </table>
           </Section>
+
+          <Section title="Лидерборд менеджеров" delay={165}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-surface text-left text-xs uppercase tracking-wide text-ink-faint">
+                  <th className="px-4 py-3 font-medium">Менеджер</th>
+                  <th className="px-4 py-3 font-medium">Лидов</th>
+                  <th className="px-4 py-3 font-medium">Won</th>
+                  <th className="px-4 py-3 font-medium">Конверсия</th>
+                  <th className="px-4 py-3 font-medium">Ср. время ответа (ч)</th>
+                  <th className="px-4 py-3 font-medium">Выручка (оплачено)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {managerPerf.map((row) => (
+                  <tr key={row.user_id} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3 font-medium text-ink">{row.user_name}</td>
+                    <td className="px-4 py-3 font-mono-num text-ink-dim">{row.leads_owned}</td>
+                    <td className="px-4 py-3 font-mono-num text-success">{row.leads_won}</td>
+                    <td className="px-4 py-3 font-mono-num text-accent-strong">
+                      {row.conversion_pct ?? "—"}%
+                    </td>
+                    <td className="px-4 py-3 font-mono-num text-ink-dim">
+                      {row.avg_first_response_hours
+                        ? Number(row.avg_first_response_hours).toFixed(1)
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3 font-mono-num text-success">
+                      {Number(row.revenue_paid).toLocaleString("ru-RU")}
+                    </td>
+                  </tr>
+                ))}
+                {managerPerf.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-6 text-center text-ink-faint">
+                      Активных менеджеров пока нет.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </Section>
+
+          <section className="rise-in" style={{ animationDelay: "185ms" }}>
+            <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-ink-faint">
+              Каналы лидов по месяцам
+            </h2>
+            <GroupedBarChart categories={channelMonths} series={channelSeries} />
+          </section>
 
           <Section title="Нагрузка команды" delay={190}>
             <table className="w-full text-sm">

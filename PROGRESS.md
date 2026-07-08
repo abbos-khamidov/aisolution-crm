@@ -565,3 +565,46 @@ round-robin-назначенным owner'ом и ack-ответ "Спасибо!
 backend (сейчас CRM крутится только локально через docker-compose на этой
 машине) плюс `CRM_API_URL`, выставленный в переменных окружения хостинга
 Django-бэкенда, а не только в локальном `.env`.
+
+## Расширение финансов и аналитики — "фарш" (2026-07-08)
+Founder явно запросил перегрузить finance/analytics данными и визуалом сверх
+CRM_SPEC.md раздела 5 (который уже был выполнен фазой 3/7). Всё аддитивно —
+существующие эндпоинты/таблицы не тронуты, только новые поля и запросы.
+
+**Схема:** новая миграция `202607080008` — `finance_entries.category` (TEXT,
+nullable). Только для `type='expense'`, свободный текст (не enum) — не стал
+усложнять справочником категорий ради MVP этой фичи.
+
+**Backend, новые эндпоинты:**
+- `GET /finance/cash-flow` — invoiced/paid/expenses/net по месяцам + aging
+  просроченных инвойсов по бакетам (0-7/8-30/31-60/60+ дней).
+- `GET /finance/expenses-by-category` — сумма и count по category
+  (`без категории` для NULL).
+- `GET /analytics/manager-performance` — лидерборд по `role='manager'`:
+  leads_owned/leads_won/conversion_pct/avg_first_response_hours/revenue_paid
+  (revenue считается по `projects.owner_id`, т.е. по владельцу ПРОЕКТА, не
+  лида — founder намеренно исключён из лидерборда, т.к. фильтр `role =
+  'manager'`).
+- `GET /analytics/leads-by-channel-over-time` — лиды по month+source, для
+  графика сравнения каналов во времени.
+- `finance_entries` CRUD (`FinanceEntryIn`/`Patch`) — добавлено поле
+  `category`.
+
+**Frontend:** новый `components/Charts.tsx` — `GroupedBarChart` (сгруппированные
+столбцы по месяцам/категориям) и `HorizontalBars` (пропорциональные
+горизонтальные полосы) — чистый SVG, без новой зависимости (chart-библиотек
+в проекте не было и не стали добавлять ради нескольких простых графиков).
+`/finance` — cash-flow график, aging просрочки, расходы по категориям поверх
+существующих таблиц по клиентам/месяцам. `/analytics` — лидерборд менеджеров
++ график каналов по месяцам поверх существующих секций воронки/конверсии/
+причин отказа/нагрузки/дыр. Живьём проверено через claude-in-chrome с
+seed-данными (лиды по 3 каналам, оплаченный/просроченный инвойс, 3
+категории расходов) — все графики и таблицы рендерятся корректно; seed-данные
+удалены после проверки.
+
+**Тесты:** `backend/tests/test_finance_analytics_expansion.py`, 5 новых
+(founder-only guard на все 4 новых эндпоинта, expense category grouping,
+cash-flow net + aging buckets, manager leaderboard math, channel-by-month
+grouping). Полный набор: 56/56 зелёных (было 51). `ruff check` чисто.
+`alembic downgrade base && alembic upgrade head` — чистый цикл без ошибок.
+Frontend: `tsc --noEmit` и `npm run build` — без ошибок.
