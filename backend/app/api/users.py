@@ -11,7 +11,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 USER_FIELDS = """
     id, name, phone, email, telegram_id, telegram_username, photo_url, quote,
-    role, is_active, created_at
+    role, role_title, is_active, created_at
 """
 Role = Literal["founder", "manager", "developer", "student"]
 
@@ -26,6 +26,7 @@ class UserIn(BaseModel):
     photo_url: str | None = None
     quote: str | None = None
     role: Role
+    role_title: str | None = None
 
 
 class UserPatch(BaseModel):
@@ -38,6 +39,7 @@ class UserPatch(BaseModel):
     photo_url: str | None = None
     quote: str | None = None
     role: Role | None = None
+    role_title: str | None = None
     is_active: bool | None = None
 
 
@@ -110,8 +112,8 @@ async def create_user(body: UserIn, user: CurrentUser = Depends(require_founder)
             f"""
             INSERT INTO users
                 (name, phone, email, password_hash, telegram_id,
-                 telegram_username, photo_url, quote, role)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                 telegram_username, photo_url, quote, role, role_title)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING {USER_FIELDS}
             """,
             body.name,
@@ -123,6 +125,7 @@ async def create_user(body: UserIn, user: CurrentUser = Depends(require_founder)
             body.photo_url,
             body.quote,
             body.role,
+            body.role_title,
         )
     except Exception as err:
         if "users_email_key" in str(err) or "users_telegram_id_key" in str(err):
@@ -151,8 +154,9 @@ async def patch_user(
             photo_url = COALESCE($7, photo_url),
             quote = COALESCE($8, quote),
             role = COALESCE($9, role),
-            is_active = COALESCE($10, is_active)
-        WHERE id = $11 AND deleted_at IS NULL
+            role_title = COALESCE($10, role_title),
+            is_active = COALESCE($11, is_active)
+        WHERE id = $12 AND deleted_at IS NULL
         RETURNING {USER_FIELDS}
         """,
         body.name,
@@ -164,6 +168,7 @@ async def patch_user(
         body.photo_url,
         body.quote,
         body.role,
+        body.role_title,
         body.is_active,
         user_id,
     )

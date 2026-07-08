@@ -2,6 +2,7 @@ import datetime as dt
 from decimal import Decimal
 from typing import Any, Literal
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
 
@@ -14,10 +15,20 @@ router = APIRouter(prefix="/leads", tags=["leads"])
 
 SOURCES = ("website", "instagram", "telegram", "facebook", "referral", "other")
 STATUSES = ("new", "contacted", "qualified", "proposal_sent", "won", "lost")
+STATUS_LABELS = {
+    "new": "Новый",
+    "contacted": "Связались",
+    "qualified": "Квалифицирован",
+    "proposal_sent": "КП отправлено",
+    "won": "Выигран",
+    "lost": "Потерян",
+}
 
 LEAD_FIELDS = """
     id, source, name, phone, email, message, utm, status, owner_id, loss_reason,
-    created_at, first_response_at, archived_at
+    created_at, first_response_at, archived_at, proposal_file_id,
+    expected_amount_min, expected_amount_mid, expected_amount_max,
+    selected_package, selected_amount, currency
 """
 
 
@@ -43,6 +54,13 @@ class LeadPatch(BaseModel):
     loss_reason: str | None = None
     message: str | None = None
     owner_id: int | None = None
+    proposal_file_id: int | None = None
+    expected_amount_min: Decimal | None = None
+    expected_amount_mid: Decimal | None = None
+    expected_amount_max: Decimal | None = None
+    selected_package: Literal["min", "mid", "max", "custom"] | None = None
+    selected_amount: Decimal | None = None
+    currency: str | None = None
 
 
 class LeadNoteIn(BaseModel):
@@ -74,6 +92,159 @@ async def _pick_round_robin_manager(conn) -> int | None:
         ORDER BY COUNT(l.id) ASC, COALESCE(MAX(l.created_at), 'epoch'::timestamptz) ASC, u.id ASC
         LIMIT 1
         """
+    )
+
+
+async def _notify_lead_group(lead_id: int, actor_id: int | None, reason: str) -> None:
+    if not settings.telegram_notify_bot_token or not settings.project_notify_chat_id:
+        return
+
+    pool = get_pool()
+    row = await pool.fetchrow(
+        """
+        SELECT
+            l.id, l.name, l.phone, l.source, l.status,
+            owner.name AS owner_name,
+            actor.name AS actor_name
+        FROM leads l
+        LEFT JOIN users owner ON owner.id = l.owner_id
+        LEFT JOIN users actor ON actor.id = $2
+        WHERE l.id = $1 AND l.deleted_at IS NULL
+        """,
+        lead_id,
+        actor_id,
+    )
+    if row is None:
+        return
+
+    status_label = STATUS_LABELS.get(row["status"], row["status"])
+    owner_name = row["owner_name"] or "не назначен"
+    actor_name = row["actor_name"] or "CRM"
+    reason_label = {
+        "claim": "Лид взят в работу",
+        "assign": "Лид закреплён",
+        "status": "Стадия лида обновлена",
+        "save": "Лид сохранён",
+    }.get(reason, "Лид обновлён")
+    phone_line = f"\nТелефон: {row['phone']}" if row["phone"] else ""
+    message = (
+        f"{reason_label}\n"
+        f"Лид: {row['name']} #{row['id']}{phone_line}\n"
+        f"Ответственный: {owner_name}\n"
+        f"Стадия: {status_label}\n"
+        f"Кто обновил: {actor_name}"
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{settings.telegram_notify_bot_token}/sendMessage",
+                json={"chat_id": settings.project_notify_chat_id, "text": message},
+            )
+    except httpx.HTTPError:
+        return
+
+
+async def _ensure_won_lead_finance(conn, lead_id: int, actor_id: int, amount: Decimal) -> None:
+    existing = await conn.fetchval(
+        """
+        SELECT fe.id
+        FROM finance_entries fe
+        JOIN projects p ON p.id = fe.project_id
+        JOIN clients c ON c.id = p.client_id
+        WHERE c.lead_id = $1
+          AND fe.deleted_at IS NULL
+          AND fe.category = 'lead_won'
+        LIMIT 1
+        """,
+        lead_id,
+    )
+    if existing is not None:
+        return
+
+    lead = await conn.fetchrow(
+        "SELECT id, name, phone, email, message, owner_id, currency FROM leads WHERE id = $1",
+        lead_id,
+    )
+    if lead is None:
+        return
+
+    client = await conn.fetchrow(
+        "SELECT id FROM clients WHERE lead_id = $1 AND deleted_at IS NULL LIMIT 1",
+        lead_id,
+    )
+    if client is None:
+        client = await conn.fetchrow(
+            """
+            INSERT INTO clients (lead_id, name, contact_info)
+            VALUES ($1, $2, $3)
+            RETURNING id
+            """,
+            lead_id,
+            lead["name"],
+            {"phone": lead["phone"], "email": lead["email"]},
+        )
+
+    project = await conn.fetchrow(
+        """
+        SELECT id FROM projects
+        WHERE client_id = $1 AND deleted_at IS NULL
+        ORDER BY id ASC
+        LIMIT 1
+        """,
+        client["id"],
+    )
+    if project is None:
+        project = await conn.fetchrow(
+            """
+            INSERT INTO projects (client_id, name, description, owner_id, budget_total, currency)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
+            """,
+            client["id"],
+            lead["name"],
+            lead["message"],
+            lead["owner_id"] or actor_id,
+            amount,
+            lead["currency"],
+        )
+        await conn.execute(
+            """
+            INSERT INTO project_members (project_id, user_id, role_on_project)
+            VALUES ($1, $2, 'lead')
+            ON CONFLICT (project_id, user_id) DO NOTHING
+            """,
+            project["id"],
+            lead["owner_id"] or actor_id,
+        )
+        await record_event(
+            conn,
+            "project",
+            project["id"],
+            actor_id,
+            "created",
+            {"lead_id": lead_id, "source": "won_lead"},
+        )
+
+    finance = await conn.fetchrow(
+        """
+        INSERT INTO finance_entries
+            (project_id, type, amount, currency, status, description, category)
+        VALUES ($1, 'invoice', $2, $3, 'pending', $4, 'lead_won')
+        RETURNING id
+        """,
+        project["id"],
+        amount,
+        lead["currency"],
+        f"Сделка выиграна из лида #{lead_id}: {lead['name']}",
+    )
+    await record_event(
+        conn,
+        "finance_entry",
+        finance["id"],
+        actor_id,
+        "created",
+        {"project_id": project["id"], "lead_id": lead_id, "source": "lead_won"},
     )
 
 
@@ -444,6 +615,7 @@ async def claim_lead(lead_id: int, user: CurrentUser = Depends(require_sales_rol
             await record_event(
                 conn, "lead", lead_id, user.id, "assigned", {"owner_id": user.id}
             )
+    await _notify_lead_group(lead_id, user.id, "claim")
     return _row_to_dict(row)
 
 
@@ -507,7 +679,14 @@ async def patch_lead(
                     loss_reason = COALESCE($2, loss_reason),
                     message = COALESCE($3, message),
                     first_response_at = CASE WHEN $4 THEN now() ELSE first_response_at END,
-                    owner_id = COALESCE($6, owner_id)
+                    owner_id = COALESCE($6, owner_id),
+                    proposal_file_id = COALESCE($7, proposal_file_id),
+                    expected_amount_min = COALESCE($8, expected_amount_min),
+                    expected_amount_mid = COALESCE($9, expected_amount_mid),
+                    expected_amount_max = COALESCE($10, expected_amount_max),
+                    selected_package = COALESCE($11, selected_package),
+                    selected_amount = COALESCE($12, selected_amount),
+                    currency = COALESCE($13, currency)
                 WHERE id = $5
                 RETURNING {LEAD_FIELDS}
                 """,
@@ -517,7 +696,20 @@ async def patch_lead(
                 set_first_response,
                 lead_id,
                 body.owner_id,
+                body.proposal_file_id,
+                body.expected_amount_min,
+                body.expected_amount_mid,
+                body.expected_amount_max,
+                body.selected_package,
+                body.selected_amount,
+                body.currency,
             )
+
+            if row["status"] == "won" and row["selected_amount"] is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="selected_amount is required when lead is won",
+                )
 
             if body.status is not None and body.status != current["status"]:
                 await record_event(
@@ -543,6 +735,15 @@ async def patch_lead(
                     "assigned",
                     {"from": current["owner_id"], "owner_id": body.owner_id},
                 )
+            if row["status"] == "won":
+                await _ensure_won_lead_finance(
+                    conn, lead_id, user.id, Decimal(row["selected_amount"])
+                )
+
+    if body.owner_id is not None and body.owner_id != current["owner_id"]:
+        await _notify_lead_group(lead_id, user.id, "assign")
+    elif body.status is not None and body.status != current["status"]:
+        await _notify_lead_group(lead_id, user.id, "status")
 
     return _row_to_dict(row)
 

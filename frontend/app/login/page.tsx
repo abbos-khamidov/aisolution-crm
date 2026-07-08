@@ -3,15 +3,27 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { LockKeyhole, Sparkles } from "lucide-react";
 import { setTokens } from "@/lib/api";
 import { decodeJwt } from "@/lib/jwt";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 const STAT_CHIPS = [
-  { label: "лидов в очереди", value: "не потеряно ни одного" },
-  { label: "КП отправлено", value: "с трекингом до копейки" },
-  { label: "дедлайнов", value: "видно за 7 дней" },
+  { label: "режим дня", value: "лиды быстро в работу" },
+  { label: "принцип", value: "каждый клиент с хозяином" },
+  { label: "фокус", value: "проекты без хаоса" },
+];
+
+const BACKDROP_QUOTES = [
+  "не теряем заявки",
+  "берём лид первым",
+  "каждое КП под контролем",
+  "клиент чувствует скорость",
+  "AI Solution CRM",
+  "работаем чисто",
+  "видим деньги",
+  "доводим до результата",
 ];
 
 function redirectForRole(role: string): string {
@@ -89,30 +101,58 @@ export default function LoginPage() {
     <main className="relative min-h-screen overflow-hidden">
       <div className="atmosphere" />
       <div className="grain" />
+      <div className="login-word-field" aria-hidden="true">
+        <div className="login-word-track">
+          {[...BACKDROP_QUOTES, ...BACKDROP_QUOTES].map((line, index) => (
+            <span key={`${line}-${index}`}>{line}</span>
+          ))}
+        </div>
+        <div className="login-word-track login-word-track--reverse">
+          {[...BACKDROP_QUOTES].reverse().map((line, index) => (
+            <span key={`${line}-reverse-${index}`}>{line}</span>
+          ))}
+        </div>
+      </div>
 
       <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center gap-10 px-6 py-16 lg:flex-row lg:items-stretch lg:gap-16">
-        {/* Left: brand / pitch panel */}
         <div className="flex max-w-md flex-1 flex-col justify-center rise-in" style={{ animationDelay: "0ms" }}>
-          <Image
-            src="/logo-wordmark.png"
-            alt="AI Solution"
-            width={220}
-            height={49}
-            className="mb-6 h-auto w-[220px]"
-            priority
-          />
+          <div className="mb-6 flex items-center gap-4">
+            <Image
+              src="/logo-light.png"
+              alt="AI Solution"
+              width={72}
+              height={72}
+              className="h-16 w-16 rounded-2xl object-contain"
+              priority
+            />
+            <Image
+              src="/motto-light.png"
+              alt="AI Solution — умные решения. реальный рост."
+              width={260}
+              height={174}
+              className="h-auto w-[230px] object-contain"
+              priority
+            />
+          </div>
+          <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-accent/20 bg-white/70 px-3 py-1.5 text-xs font-semibold text-accent-strong shadow-sm backdrop-blur">
+            <Sparkles size={14} />
+            Закрытый рабочий центр AI Solution
+          </div>
           <h1 className="font-display text-4xl font-bold leading-[1.05] text-ink sm:text-5xl">
-            Лиды не ждут.
+            CRM, которая
             <br />
-            <span className="text-accent-strong">Ты тоже не жди.</span>
+            <span className="text-accent-strong">держит темп команды.</span>
           </h1>
           <p className="mt-5 max-w-sm text-balance text-base leading-relaxed text-ink-dim">
             AI Solution CRM — закрытая рабочая система aisolution.uz. Один вход — и вся
             воронка, все проекты и все дедлайны на расстоянии клика.
           </p>
-          <p className="mt-4 max-w-sm text-sm leading-relaxed text-ink-faint">
+          <p className="mt-4 flex max-w-sm gap-2 text-sm leading-relaxed text-ink-faint">
+            <LockKeyhole className="mt-0.5 shrink-0 text-accent-strong" size={16} />
+            <span>
             Регистрации здесь нет: доступ выдаётся только по запросу founder, чтобы
             данные клиентов и команды оставались внутри AI Solution.
+            </span>
           </p>
 
           <div className="mt-10 flex flex-col gap-3">
@@ -131,9 +171,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Right: auth card */}
         <div
-          className="rise-in w-full max-w-sm shrink-0 self-center rounded-2xl border border-border bg-bg-elevated/80 p-8 shadow-glow backdrop-blur-xl"
+          className="rise-in w-full max-w-sm shrink-0 self-center rounded-2xl border border-border bg-bg-elevated/88 p-8 shadow-glow backdrop-blur-xl"
           style={{ animationDelay: "80ms" }}
         >
           <h2 className="font-display text-xl font-semibold text-ink">С возвращением</h2>

@@ -13,14 +13,32 @@ interface User {
   email: string;
   telegram_id: number | null;
   role: string;
+  role_title: string | null;
   is_active: boolean;
 }
 
+interface UserDraft {
+  name: string;
+  email: string;
+  phone: string;
+  telegram_id: string;
+  role: string;
+  role_title: string;
+  password: string;
+}
+
 const ROLES = ["manager", "developer", "student"] as const;
+const ROLE_LABELS: Record<string, string> = {
+  founder: "Founder",
+  manager: "Менеджер",
+  developer: "Разработчик",
+  student: "Ученик",
+};
 
 export default function TeamPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
+  const [drafts, setDrafts] = useState<Record<number, UserDraft>>({});
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
@@ -29,6 +47,7 @@ export default function TeamPage() {
     phone: "",
     telegram_id: "",
     role: "manager",
+    role_title: "",
   });
 
   async function load() {
@@ -43,7 +62,24 @@ export default function TeamPage() {
       setError(body.detail ?? `Ошибка ${res.status}`);
       return;
     }
-    setUsers(await res.json());
+    const data: User[] = await res.json();
+    setUsers(data);
+    setDrafts(
+      Object.fromEntries(
+        data.map((user) => [
+          user.id,
+          {
+            name: user.name,
+            email: user.email,
+            phone: user.phone ?? "",
+            telegram_id: user.telegram_id ? String(user.telegram_id) : "",
+            role: user.role,
+            role_title: user.role_title ?? "",
+            password: "",
+          },
+        ])
+      )
+    );
   }
 
   useEffect(() => {
@@ -58,6 +94,7 @@ export default function TeamPage() {
       telegram_id: form.telegram_id ? Number(form.telegram_id) : null,
       phone: form.phone || null,
       password: form.password || null,
+      role_title: form.role_title || null,
     };
     const res = await apiFetch("/users", { method: "POST", body: JSON.stringify(payload) });
     if (!res.ok) {
@@ -65,11 +102,11 @@ export default function TeamPage() {
       setError(body.detail ?? `Ошибка ${res.status}`);
       return;
     }
-    setForm({ name: "", email: "", password: "", phone: "", telegram_id: "", role: "manager" });
+    setForm({ name: "", email: "", password: "", phone: "", telegram_id: "", role: "manager", role_title: "" });
     await load();
   }
 
-  async function patchUser(userId: number, body: Record<string, string | boolean>) {
+  async function patchUser(userId: number, body: Record<string, string | number | boolean | null>) {
     const res = await apiFetch(`/users/${userId}`, {
       method: "PATCH",
       body: JSON.stringify(body),
@@ -82,6 +119,30 @@ export default function TeamPage() {
     await load();
   }
 
+  function updateDraft(userId: number, patch: Partial<UserDraft>) {
+    setDrafts((current) => ({
+      ...current,
+      [userId]: {
+        ...current[userId],
+        ...patch,
+      },
+    }));
+  }
+
+  async function saveUser(userId: number) {
+    const draft = drafts[userId];
+    if (!draft) return;
+    await patchUser(userId, {
+      name: draft.name,
+      email: draft.email,
+      phone: draft.phone || null,
+      telegram_id: draft.telegram_id ? Number(draft.telegram_id) : null,
+      role: draft.role,
+      role_title: draft.role_title || null,
+      ...(draft.password ? { password: draft.password } : {}),
+    });
+  }
+
   return (
     <AppShell eyebrow="Доступы и роли" title="Команда">
       {error && (
@@ -90,46 +151,108 @@ export default function TeamPage() {
         </p>
       )}
 
-      <div className="mb-6 grid gap-3 rounded-2xl border border-border bg-surface p-4 md:grid-cols-6">
+      <div className="mb-6 grid gap-3 rounded-2xl border border-border bg-surface p-4 md:grid-cols-7">
         <input className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink" placeholder="Имя" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <input className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         <input className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink" placeholder="Пароль" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         <input className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink" placeholder="Телефон" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         <select className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-          {ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
+          {ROLES.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
         </select>
+        <input className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink" placeholder="Должность: Head of Sales" value={form.role_title} onChange={(e) => setForm({ ...form, role_title: e.target.value })} />
         <button onClick={createUser} className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-white">Добавить</button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-border bg-white">
+        <table className="min-w-[1180px] w-full text-sm">
           <thead className="bg-surface text-left text-xs uppercase text-ink-faint">
             <tr>
               <th className="px-4 py-3">Имя</th>
-              <th className="px-4 py-3">Контакты</th>
-              <th className="px-4 py-3">Роль</th>
+              <th className="px-4 py-3">Email</th>
+              <th className="px-4 py-3">Телефон</th>
+              <th className="px-4 py-3">Telegram ID</th>
+              <th className="px-4 py-3">Доступ</th>
+              <th className="px-4 py-3">Должность</th>
+              <th className="px-4 py-3">Новый пароль</th>
               <th className="px-4 py-3">Статус</th>
               <th className="px-4 py-3">Действия</th>
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className="border-t border-border">
-                <td className="px-4 py-3 font-medium text-ink">{u.name}</td>
-                <td className="px-4 py-3 text-ink-dim">{u.email}{u.phone ? ` · ${u.phone}` : ""}</td>
+            {users.map((u) => {
+              const draft = drafts[u.id];
+              return (
+              <tr key={u.id} className="border-t border-border align-top">
                 <td className="px-4 py-3">
-                  <select className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-ink" value={u.role} onChange={(e) => patchUser(u.id, { role: e.target.value })}>
-                    {["founder", ...ROLES].map((role) => <option key={role} value={role}>{role}</option>)}
+                  <input
+                    className="w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-xs font-medium text-ink"
+                    value={draft?.name ?? ""}
+                    onChange={(e) => updateDraft(u.id, { name: e.target.value })}
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    className="w-48 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-ink"
+                    value={draft?.email ?? ""}
+                    onChange={(e) => updateDraft(u.id, { email: e.target.value })}
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    className="w-36 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-ink"
+                    value={draft?.phone ?? ""}
+                    placeholder="+998"
+                    onChange={(e) => updateDraft(u.id, { phone: e.target.value })}
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    className="w-32 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-ink"
+                    value={draft?.telegram_id ?? ""}
+                    inputMode="numeric"
+                    onChange={(e) => updateDraft(u.id, { telegram_id: e.target.value })}
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <select
+                    className="w-32 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-ink"
+                    value={draft?.role ?? u.role}
+                    onChange={(e) => updateDraft(u.id, { role: e.target.value })}
+                  >
+                    {["founder", ...ROLES].map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
                   </select>
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    className="w-44 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-ink"
+                    value={draft?.role_title ?? ""}
+                    placeholder="Например: Head of Sales"
+                    onChange={(e) => updateDraft(u.id, { role_title: e.target.value })}
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    className="w-36 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-ink"
+                    value={draft?.password ?? ""}
+                    placeholder="не менять"
+                    type="password"
+                    onChange={(e) => updateDraft(u.id, { password: e.target.value })}
+                  />
                 </td>
                 <td className="px-4 py-3"><Badge label={u.is_active ? "active" : "off"} tone={u.is_active ? "success" : "danger"} /></td>
                 <td className="px-4 py-3">
-                  <button onClick={() => patchUser(u.id, { is_active: !u.is_active })} className="rounded-md bg-surface-2 px-2 py-1 text-xs text-ink">
+                  <div className="flex flex-col gap-2">
+                    <button onClick={() => saveUser(u.id)} className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white">
+                      Сохранить
+                    </button>
+                    <button onClick={() => patchUser(u.id, { is_active: !u.is_active })} className="rounded-md bg-surface-2 px-3 py-1.5 text-xs text-ink">
                     {u.is_active ? "Отключить" : "Включить"}
-                  </button>
+                    </button>
+                  </div>
                 </td>
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
       </div>

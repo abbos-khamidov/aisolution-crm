@@ -192,6 +192,80 @@ h1, h2, h3, h4, .font-display {
   to { transform: translateX(-70%) rotate(5deg); }
 }
 
+.login-word-field {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+}
+
+.login-word-field::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(110deg, rgba(255, 255, 255, 0.92), transparent 36%),
+    radial-gradient(circle at 78% 22%, rgba(11, 127, 232, 0.08), transparent 28%);
+}
+
+.login-word-track {
+  position: absolute;
+  left: -10%;
+  top: 10%;
+  display: flex;
+  width: max-content;
+  gap: 34px;
+  transform: rotate(-8deg);
+  animation: login-words 34s linear infinite;
+  opacity: 0.2;
+}
+
+.login-word-track--reverse {
+  top: 74%;
+  transform: rotate(6deg);
+  animation-name: login-words-reverse;
+  animation-duration: 48s;
+  opacity: 0.15;
+}
+
+.login-word-track span {
+  white-space: nowrap;
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(28px, 5vw, 84px);
+  font-weight: 800;
+  color: rgba(11, 79, 158, 0.16);
+}
+
+@keyframes login-words {
+  from { transform: translateX(0) rotate(-8deg); }
+  to { transform: translateX(-50%) rotate(-8deg); }
+}
+
+@keyframes login-words-reverse {
+  from { transform: translateX(-45%) rotate(6deg); }
+  to { transform: translateX(0) rotate(6deg); }
+}
+
+.dashboard-hero-glow {
+  position: absolute;
+  inset: -120px -80px auto auto;
+  width: 420px;
+  height: 420px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(11, 127, 232, 0.18), transparent 62%),
+    radial-gradient(circle at 30% 70%, rgba(5, 150, 105, 0.11), transparent 54%);
+  filter: blur(18px);
+  animation: dashboard-glow-float 10s ease-in-out infinite alternate;
+}
+
+@keyframes dashboard-glow-float {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(-24px, 20px, 0) scale(1.06); }
+}
+
 ::selection {
   background: var(--accent);
   color: #ffffff;

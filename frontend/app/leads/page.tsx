@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import {
   Archive,
   Check,
+  FileText,
   FolderPlus,
   MessageSquare,
+  Paperclip,
   Phone,
   Plus,
   RotateCcw,
@@ -34,6 +36,13 @@ interface Lead {
   loss_reason: string | null;
   created_at: string;
   archived_at: string | null;
+  proposal_file_id: number | null;
+  expected_amount_min: string | null;
+  expected_amount_mid: string | null;
+  expected_amount_max: string | null;
+  selected_package: string | null;
+  selected_amount: string | null;
+  currency: string;
 }
 
 interface User {
@@ -43,7 +52,20 @@ interface User {
   is_active: boolean;
 }
 
+interface DealDraft {
+  expected_amount_min: string;
+  expected_amount_mid: string;
+  expected_amount_max: string;
+  selected_package: "min" | "mid" | "max" | "custom";
+  selected_amount: string;
+  currency: string;
+  proposal_file_id: number | null;
+  proposal_file_name: string;
+  file: File | null;
+}
+
 const STATUSES = ["new", "contacted", "qualified", "proposal_sent", "won", "lost"];
+const PIPELINE_STATUSES = ["new", "contacted", "qualified", "proposal_sent", "won"] as const;
 
 const STATUS_LABEL: Record<string, string> = {
   new: "Новый",
@@ -82,6 +104,9 @@ export default function LeadsPage() {
   const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
   const [mentionDrafts, setMentionDrafts] = useState<Record<number, string>>({});
   const [openNoteLeadId, setOpenNoteLeadId] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [dealDrafts, setDealDrafts] = useState<Record<number, DealDraft>>({});
+  const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
   const [manualLead, setManualLead] = useState({
     source: "other",
     name: "",
@@ -107,7 +132,26 @@ export default function LeadsPage() {
       setError(body.detail ?? `Ошибка ${res.status}`);
       return;
     }
-    setLeads(await res.json());
+    const data: Lead[] = await res.json();
+    setLeads(data);
+    setDealDrafts((current) => {
+      const next = { ...current };
+      for (const lead of data) {
+        if (next[lead.id]) continue;
+        next[lead.id] = {
+          expected_amount_min: lead.expected_amount_min ?? "",
+          expected_amount_mid: lead.expected_amount_mid ?? "",
+          expected_amount_max: lead.expected_amount_max ?? "",
+          selected_package: (lead.selected_package as DealDraft["selected_package"]) ?? "mid",
+          selected_amount: lead.selected_amount ?? "",
+          currency: lead.currency ?? "USD",
+          proposal_file_id: lead.proposal_file_id,
+          proposal_file_name: lead.proposal_file_id ? `КП #${lead.proposal_file_id}` : "",
+          file: null,
+        };
+      }
+      return next;
+    });
   }
 
   async function loadUsers() {
@@ -160,6 +204,64 @@ export default function LeadsPage() {
 
   const queueCount = leads.filter((lead) => lead.owner_id === null).length;
   const activeCount = leads.filter((lead) => !["won", "lost"].includes(lead.status)).length;
+  const selectedLead = filteredLeads.find((lead) => lead.id === selectedLeadId) ?? null;
+
+  function showToast(message: string) {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 4200);
+  }
+
+  function updateDealDraft(leadId: number, patch: Partial<DealDraft>) {
+    setDealDrafts((current) => ({
+      ...current,
+      [leadId]: {
+        ...(current[leadId] ?? {
+          expected_amount_min: "",
+          expected_amount_mid: "",
+          expected_amount_max: "",
+          selected_package: "mid",
+          selected_amount: "",
+          currency: "USD",
+          proposal_file_id: null,
+          proposal_file_name: "",
+          file: null,
+        }),
+        ...patch,
+      },
+    }));
+  }
+
+  function selectedAmountFromDraft(draft: DealDraft): string {
+    if (draft.selected_package === "min") return draft.expected_amount_min;
+    if (draft.selected_package === "mid") return draft.expected_amount_mid;
+    if (draft.selected_package === "max") return draft.expected_amount_max;
+    return draft.selected_amount;
+  }
+
+  async function uploadProposalIfNeeded(lead: Lead): Promise<number | null> {
+    const draft = dealDrafts[lead.id];
+    if (!draft?.file) return draft?.proposal_file_id ?? lead.proposal_file_id ?? null;
+    if (draft.file.type !== "application/pdf") {
+      setError("КП нужно прикрепить в PDF.");
+      return null;
+    }
+    const formData = new FormData();
+    formData.append("file", draft.file);
+    formData.append("lead_id", String(lead.id));
+    const res = await apiFetch("/files", { method: "POST", body: formData });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.detail ?? `Ошибка загрузки PDF: ${res.status}`);
+      return null;
+    }
+    const file = await res.json();
+    updateDealDraft(lead.id, {
+      proposal_file_id: file.id,
+      proposal_file_name: file.filename,
+      file: null,
+    });
+    return file.id;
+  }
 
   async function claim(leadId: number) {
     setError(null);
@@ -169,6 +271,7 @@ export default function LeadsPage() {
       setError(body.detail ?? `Ошибка ${res.status}`);
       return;
     }
+    showToast("Лид закреплён за тобой. Уведомление отправлено в группу.");
     await loadLeads();
   }
 
@@ -203,7 +306,26 @@ export default function LeadsPage() {
     setError(null);
     const nextStatus = statusDrafts[lead.id] ?? lead.status;
     const lossReason = lossReasonDrafts[lead.id];
-    const body: Record<string, string> = { status: nextStatus };
+    const draft = dealDrafts[lead.id];
+    const selectedAmount = draft ? selectedAmountFromDraft(draft) : "";
+    if (nextStatus === "won" && !selectedAmount) {
+      setError("Для выигранного лида выбери пакет или впиши финальную сумму.");
+      return;
+    }
+    const proposalFileId = await uploadProposalIfNeeded(lead);
+    if (dealDrafts[lead.id]?.file && proposalFileId === null) return;
+    const body: Record<string, string | number | null> = {
+      status: nextStatus,
+      proposal_file_id: proposalFileId,
+    };
+    if (draft) {
+      body.expected_amount_min = draft.expected_amount_min || null;
+      body.expected_amount_mid = draft.expected_amount_mid || null;
+      body.expected_amount_max = draft.expected_amount_max || null;
+      body.selected_package = draft.selected_package;
+      body.selected_amount = selectedAmount || null;
+      body.currency = draft.currency || "USD";
+    }
     if (nextStatus === "lost") {
       if (!lossReason) {
         setError("Для статуса Потерян нужна причина отказа.");
@@ -220,6 +342,11 @@ export default function LeadsPage() {
       setError(respBody.detail ?? `Ошибка ${res.status}`);
       return;
     }
+    showToast(
+      nextStatus === "won"
+        ? `Выигран: ${lead.name}. Сумма ушла в финансы и аналитику.`
+        : `Сохранено: ${lead.name} · стадия ${STATUS_LABEL[nextStatus]}. Группа получила уведомление.`
+    );
     await loadLeads();
   }
 
@@ -235,6 +362,8 @@ export default function LeadsPage() {
       setError(body.detail ?? `Ошибка ${res.status}`);
       return;
     }
+    const ownerName = userById.get(Number(ownerId))?.name ?? "ответственным";
+    showToast(`Лид закреплён за ${ownerName}. Уведомление отправлено в группу.`);
     await loadLeads();
   }
 
@@ -291,6 +420,19 @@ export default function LeadsPage() {
 
   return (
     <AppShell eyebrow="Воронка продаж" title="Лиды">
+      {toast && (
+        <div className="fixed right-6 top-6 z-50 w-[min(360px,calc(100vw-32px))] rounded-2xl border border-success/20 bg-white/95 p-4 text-sm text-ink shadow-glow backdrop-blur">
+          <div className="flex gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-success-soft text-success">
+              <Check size={18} />
+            </span>
+            <div>
+              <p className="font-semibold text-ink">Готово</p>
+              <p className="mt-1 leading-5 text-ink-dim">{toast}</p>
+            </div>
+          </div>
+        </div>
+      )}
       {error && (
         <p className="mb-4 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
           {error}
@@ -359,8 +501,15 @@ export default function LeadsPage() {
                 ? userById.get(lead.owner_id)?.name ?? lead.owner_id
                 : "Ответственный не назначен";
               const nextStatus = statusDrafts[lead.id] ?? lead.status;
+              const dealDraft = dealDrafts[lead.id];
               return (
-                <article key={lead.id} className="rounded-2xl border border-border bg-surface p-4 shadow-sm">
+                <article
+                  key={lead.id}
+                  onClick={() => setSelectedLeadId(lead.id)}
+                  className={`cursor-pointer rounded-2xl border bg-surface p-4 shadow-sm transition hover:border-accent ${
+                    selectedLeadId === lead.id ? "border-accent shadow-glow" : "border-border"
+                  }`}
+                >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">
                       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -376,6 +525,9 @@ export default function LeadsPage() {
                       <h3 className="truncate font-display text-lg font-semibold text-ink">
                         {lead.name}
                       </h3>
+                      <p className="mt-1 text-xs font-medium text-accent-strong">
+                        Этап: {STATUS_LABEL[lead.status] ?? lead.status}. Кликните, чтобы узнать подробнее.
+                      </p>
                       <div className="mt-2 flex flex-wrap gap-2 text-sm text-ink-dim">
                         {lead.phone && (
                           <a
@@ -397,6 +549,95 @@ export default function LeadsPage() {
                         <p className="mt-3 whitespace-pre-wrap rounded-xl bg-bg px-3 py-2 text-sm leading-relaxed text-ink-dim">
                           {lead.message}
                         </p>
+                      )}
+                      {canEdit(lead) && dealDraft && (
+                        <div className="mt-4 rounded-xl border border-border bg-bg p-3">
+                          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
+                            <FileText size={16} className="text-accent-strong" />
+                            КП и сумма сделки
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-4">
+                            <input
+                              className="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-ink"
+                              placeholder="Мин"
+                              inputMode="decimal"
+                              value={dealDraft.expected_amount_min}
+                              onChange={(e) => updateDealDraft(lead.id, { expected_amount_min: e.target.value })}
+                            />
+                            <input
+                              className="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-ink"
+                              placeholder="Сред"
+                              inputMode="decimal"
+                              value={dealDraft.expected_amount_mid}
+                              onChange={(e) => updateDealDraft(lead.id, { expected_amount_mid: e.target.value })}
+                            />
+                            <input
+                              className="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-ink"
+                              placeholder="Макс"
+                              inputMode="decimal"
+                              value={dealDraft.expected_amount_max}
+                              onChange={(e) => updateDealDraft(lead.id, { expected_amount_max: e.target.value })}
+                            />
+                            <select
+                              className="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-ink"
+                              value={dealDraft.currency}
+                              onChange={(e) => updateDealDraft(lead.id, { currency: e.target.value })}
+                            >
+                              <option value="USD">USD</option>
+                              <option value="UZS">UZS</option>
+                              <option value="RUB">RUB</option>
+                            </select>
+                          </div>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                            <select
+                              className="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-ink"
+                              value={dealDraft.selected_package}
+                              onChange={(e) =>
+                                updateDealDraft(lead.id, {
+                                  selected_package: e.target.value as DealDraft["selected_package"],
+                                })
+                              }
+                            >
+                              <option value="min">Минимальный пакет</option>
+                              <option value="mid">Средний пакет</option>
+                              <option value="max">Максимальный пакет</option>
+                              <option value="custom">Вписать вручную</option>
+                            </select>
+                            <input
+                              className="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-ink disabled:text-ink-faint"
+                              placeholder="Финальная сумма"
+                              inputMode="decimal"
+                              disabled={dealDraft.selected_package !== "custom"}
+                              value={
+                                dealDraft.selected_package === "custom"
+                                  ? dealDraft.selected_amount
+                                  : selectedAmountFromDraft(dealDraft)
+                              }
+                              onChange={(e) => updateDealDraft(lead.id, { selected_amount: e.target.value })}
+                            />
+                            <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm font-semibold text-ink hover:border-accent hover:text-accent-strong">
+                              <Paperclip size={15} />
+                              PDF КП
+                              <input
+                                type="file"
+                                accept="application/pdf,.pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] ?? null;
+                                  updateDealDraft(lead.id, {
+                                    file,
+                                    proposal_file_name: file?.name ?? dealDraft.proposal_file_name,
+                                  });
+                                }}
+                              />
+                            </label>
+                          </div>
+                          {(dealDraft.proposal_file_name || lead.proposal_file_id) && (
+                            <p className="mt-2 text-xs text-ink-faint">
+                              КП: {dealDraft.proposal_file_name || `файл #${lead.proposal_file_id}`}
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
 
@@ -547,6 +788,21 @@ export default function LeadsPage() {
         </section>
       </div>
 
+      {selectedLead && (
+        <section className="sticky bottom-4 z-30 mt-6 rounded-2xl border border-border bg-white/95 p-5 shadow-glow backdrop-blur">
+          <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase text-ink-faint">Этапность лида</p>
+              <h2 className="font-display text-lg font-semibold text-ink">{selectedLead.name}</h2>
+            </div>
+            <p className="text-sm text-ink-dim">
+              Сейчас: {STATUS_LABEL[selectedLead.status] ?? selectedLead.status}
+            </p>
+          </div>
+          <LeadTimeline status={selectedLead.status} />
+        </section>
+      )}
+
       {showManualModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 px-4">
           <div className="w-full max-w-lg rounded-2xl border border-border bg-surface p-5 shadow-glow">
@@ -617,5 +873,51 @@ export default function LeadsPage() {
         </div>
       )}
     </AppShell>
+  );
+}
+
+function LeadTimeline({ status }: { status: string }) {
+  const isLost = status === "lost";
+  const activeIndex = isLost
+    ? PIPELINE_STATUSES.length - 1
+    : Math.max(0, PIPELINE_STATUSES.findIndex((item) => item === status));
+
+  return (
+    <div>
+      <div className="relative grid grid-cols-5 gap-2">
+        <div className="absolute left-[10%] right-[10%] top-5 h-0.5 bg-border" />
+        <div
+          className={`absolute left-[10%] top-5 h-0.5 ${isLost ? "bg-danger" : "bg-accent"}`}
+          style={{ width: `${Math.max(0, activeIndex) * 20}%` }}
+        />
+        {PIPELINE_STATUSES.map((item, index) => {
+          const done = index <= activeIndex && !isLost;
+          const current = item === status;
+          return (
+            <div key={item} className="relative flex min-w-0 flex-col items-center text-center">
+              <span
+                className={`z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-bold ${
+                  current
+                    ? "border-accent bg-accent text-white"
+                    : done
+                      ? "border-accent bg-accent-soft text-accent-strong"
+                      : "border-border bg-white text-ink-faint"
+                }`}
+              >
+                {index + 1}
+              </span>
+              <span className="mt-2 text-[11px] font-semibold leading-tight text-ink">
+                {STATUS_LABEL[item]}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {isLost && (
+        <p className="mt-4 rounded-xl border border-danger/20 bg-danger-soft px-3 py-2 text-sm text-danger">
+          Лид потерян. Причина отказа хранится в карточке лида.
+        </p>
+      )}
+    </div>
   );
 }
