@@ -1,5 +1,21 @@
 # PROGRESS.md — aisolutioncrm
 
+## [2026-07-08] Визуальный редизайн фронтенда
+По запросу founder'а поверх функционального MVP сделан полноценный визуал:
+тёмная tech-эстетика (навy + циан, в тон бренду aisolution.uz), шрифты
+Unbounded/Manrope/JetBrains Mono, общий `AppShell`+`Sidebar` вместо
+разрозненных текстовых ссылок на каждой странице, новая `/dashboard` с живыми
+метриками и анимированными счётчиками, Aviasales-style тексты. Все страницы
+(`leads/projects/finance/files/tasks/analytics/my-tasks`) переведены на общий
+shell. Живьём проверено через claude-in-chrome поверх docker-compose стека —
+login → dashboard → лиды рендерятся корректно, счётчики совпадают с реальными
+данными. Это НЕ входило в BUILD_PHASES.md, отдельный запрос сверх плана.
+
+**Заметка для будущих сессий:** после `npm install <пакет>` на хосте нужно не
+просто `docker compose up --build`, а `docker compose rm -sfv frontend &&
+docker compose up -d --build frontend` — анонимный volume `/app/node_modules`
+не пересоздаётся при обычном `--build` и держит старые зависимости.
+
 ## Что проверить в первую очередь (все 8 фаз завершены)
 
 Ничего не заблокировано. 45 backend-тестов + 10 bot-тестов зелёные, ruff чист,
