@@ -151,10 +151,11 @@ async def patch_finance_entry(
     return dict(row)
 
 
-@router.get("/finance/summary")
-async def finance_summary(user: CurrentUser = Depends(require_founder)) -> dict:
-    pool = get_pool()
-
+async def compute_finance_summary(pool) -> dict:
+    """Shared by GET /finance/summary and the phase 7 analytics revenue view
+    — CRM_SPEC.md section 5 says analytics is computed from events/aggregates,
+    not a separate analytics service, so this is the one query, reused.
+    """
     by_client = await pool.fetch(
         """
         SELECT
@@ -198,3 +199,8 @@ async def finance_summary(user: CurrentUser = Depends(require_founder)) -> dict:
         "by_client": [dict(r) for r in by_client],
         "by_month": [dict(r) for r in by_month],
     }
+
+
+@router.get("/finance/summary")
+async def finance_summary(user: CurrentUser = Depends(require_founder)) -> dict:
+    return await compute_finance_summary(get_pool())

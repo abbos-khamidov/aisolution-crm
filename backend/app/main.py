@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
 from app.api.clients import router as clients_router
 from app.api.files import router as files_router
@@ -29,6 +30,7 @@ app.include_router(finance_router)
 app.include_router(files_router)
 app.include_router(tasks_router)
 app.include_router(bot_internal_router)
+app.include_router(analytics_router)
 
 
 @app.get("/health")

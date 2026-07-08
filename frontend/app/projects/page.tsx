@@ -78,6 +78,9 @@ export default function ProjectsPage() {
           <Link href="/tasks" className="text-sm text-gray-500 underline">
             Таски
           </Link>
+          <Link href="/analytics" className="text-sm text-gray-500 underline">
+            Аналитика
+          </Link>
           <button onClick={() => setShowAll((v) => !v)} className="text-sm underline">
             {showAll ? "Только активные" : "Показать все"}
           </button>

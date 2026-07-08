@@ -18,8 +18,8 @@
   убедиться, что сообщение с кнопкой пришло и "Готово" реально меняет статус.
 
 ## Текущая фаза
-Фаза 6: Роли и доступ (RBAC) — done.
-Следующая: Фаза 7 — Аналитика.
+Фаза 7: Аналитика — done.
+Следующая: Фаза 8 — Доп. каналы лидов (Instagram/Telegram/Facebook).
 
 ## Завершено
 - Фаза 0: monorepo (`/backend`, `/frontend`), первая Alembic-миграция (`users`,
@@ -78,6 +78,13 @@
   <token>` → `/internal/bot/telegram-login/confirm` → фронт поллит
   `/auth/telegram/{token}/poll`). Frontend: `/my-tasks` (read-only портал для
   student), Telegram-логин на `/login`, корневая страница роутит по роли.
+- Фаза 7: `/analytics/funnel` (реконструкция статусов лида чисто из `events` —
+  `created`→new, `status_changed.payload.to`, время в статусе через
+  `LEAD() OVER`), `/analytics/conversion-by-source`, `/analytics/loss-reasons`,
+  `/analytics/revenue` (переиспользует SQL из `/finance/summary` фазы 3 — одна
+  функция `compute_finance_summary`, не отдельный analytics-сервис),
+  `/analytics/team-load`, `/analytics/stale-leads?days=N` (default 7). Все
+  founder-only. Frontend: `/analytics` — все пять таблиц на одной странице.
 
 ## Decisions & Assumptions
 
@@ -266,6 +273,19 @@
   недокументированное предположение. Если понадобится — явное решение
   founder'а, не догадка агента.
 
+- **[2026-07-08] Funnel считает "reached_count" как DISTINCT лидов, у которых
+  в истории `events` встречается этот статус хотя бы раз** (не только текущий
+  статус) — так лид, прошедший new→contacted→lost, засчитывается в reached
+  для new, contacted И lost одновременно. Это отвечает на вопрос "сколько
+  лидов вообще проходило через X", а не "сколько сейчас в X" (для последнего
+  есть обычный `GROUP BY status` по текущей таблице `leads`, не нужен здесь).
+
+- **[2026-07-08] `avg_hours_in_status` считается через `LEAD() OVER (PARTITION
+  BY lead_id ORDER BY entered_at)`**, где следующая точка — либо следующий
+  статус, либо `now()` для лида, до сих пор находящегося в этом статусе.
+  Численно проверяемо вручную по `events` для конкретного лида (что и требует
+  acceptance-критерий фазы 7).
+
 ## Known issues / TODO
 - Docker-compose live run не проверен (см. Decisions выше) — проверить на
   реальной машине с установленным Docker/Colima перед деплоем.
@@ -291,9 +311,10 @@
   через бота, не через веб. Осознанное ограничение, не забытая фича.
 
 ## С чего продолжить следующую сессию
-Фаза 7 (`BUILD_PHASES.md` раздел "Фаза 7 — Аналитика"): воронка (new→won/lost
-с временем в каждом статусе), конверсия по source, разбивка по loss_reason,
-revenue по клиенту/месяцу (уже частично есть в `/finance/summary`), нагрузка
-команды, "дыры" (лиды без activity > N дней). Считать из `events` +
-агрегатов, founder-only дашборд (уже есть паттерн `require_founder`). Открыть
-`backend/app/api/`, добавить `analytics.py`.
+Фаза 8 (`BUILD_PHASES.md` раздел "Фаза 8 — Доп. каналы лидов"): webhook-
+эндпоинты для Instagram/Telegram/Facebook, маппинг в ту же таблицу `leads`
+(тот же claim/owner-flow, что и website), utm/source-специфичные поля — в
+jsonb `utm`, не новые колонки. `leads.source` CHECK уже включает эти три
+значения с фазы 1 (`instagram|telegram|facebook|referral|other`) — новых
+миграций для самой схемы не требуется, только новые webhook-роуты в
+`backend/app/api/leads.py`.
