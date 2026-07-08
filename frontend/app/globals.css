@@ -133,6 +133,65 @@ h1, h2, h3, h4, .font-display {
   animation: count-blur-in 0.5s ease-out both;
 }
 
+.crm-live-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.crm-live-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(11, 127, 232, 0.1), transparent 28%),
+    radial-gradient(circle at 88% 82%, rgba(5, 150, 105, 0.08), transparent 30%);
+}
+
+.crm-live-track {
+  position: absolute;
+  left: 240px;
+  top: 8%;
+  display: flex;
+  width: max-content;
+  gap: 44px;
+  transform: rotate(-7deg);
+  animation: crm-marquee 42s linear infinite;
+  opacity: 0.2;
+}
+
+.crm-live-track--slow {
+  top: 72%;
+  transform: rotate(5deg);
+  animation-duration: 58s;
+  animation-direction: reverse;
+  opacity: 0.16;
+}
+
+.crm-live-track span {
+  white-space: nowrap;
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(28px, 4vw, 76px);
+  font-weight: 700;
+  color: rgba(11, 79, 158, 0.18);
+}
+
+@keyframes crm-marquee {
+  from { transform: translateX(0) rotate(-7deg); }
+  to { transform: translateX(-50%) rotate(-7deg); }
+}
+
+.crm-live-track--slow {
+  animation-name: crm-marquee-slow;
+}
+
+@keyframes crm-marquee-slow {
+  from { transform: translateX(-20%) rotate(5deg); }
+  to { transform: translateX(-70%) rotate(5deg); }
+}
+
 ::selection {
   background: var(--accent);
   color: #ffffff;

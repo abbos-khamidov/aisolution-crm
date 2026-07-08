@@ -148,8 +148,6 @@ export default function LeadsPage() {
   }
 
   const filteredLeads = leads.filter((lead) => {
-    if (filter === "archive" && !lead.archived_at) return false;
-    if (filter !== "archive" && lead.archived_at) return false;
     if (filter === "queue" && lead.owner_id !== null) return false;
     if (filter === "mine" && (!me || lead.owner_id !== Number(me.sub))) return false;
     if (["won", "lost"].includes(lead.status) && filter !== "all") return false;
