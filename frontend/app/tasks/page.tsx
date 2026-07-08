@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import AppShell from "@/components/AppShell";
 import { apiFetch, clearTokens } from "@/lib/api";
 
 interface OverdueRow {
@@ -38,39 +38,40 @@ export default function TasksPage() {
   }, []);
 
   return (
-    <main className="mx-auto max-w-3xl p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Просроченные таски</h1>
-        <Link href="/projects" className="text-sm text-gray-500 underline">
-          Проекты
-        </Link>
+    <AppShell eyebrow="Кто просрочил" title="Просроченные таски">
+      {error && (
+        <p className="rise-in mb-4 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+          {error}
+        </p>
+      )}
+
+      <div className="rise-in overflow-hidden rounded-2xl border border-border" style={{ animationDelay: "60ms" }}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-surface text-left text-xs uppercase tracking-wide text-ink-faint">
+              <th className="px-4 py-3 font-medium">Исполнитель</th>
+              <th className="px-4 py-3 font-medium">Просрочено задач</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.assigned_to} className="border-b border-border last:border-0">
+                <td className="px-4 py-3 font-medium text-ink">{row.assigned_to_name}</td>
+                <td className="px-4 py-3 font-mono-num font-semibold text-danger">
+                  {row.overdue_count}
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={2} className="px-4 py-8 text-center text-ink-faint">
+                  Просрочек нет. Команда красавцы.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
-
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b text-left">
-            <th className="py-2">Исполнитель</th>
-            <th>Просрочено задач</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.assigned_to} className="border-b">
-              <td className="py-2">{row.assigned_to_name}</td>
-              <td className="text-red-600">{row.overdue_count}</td>
-            </tr>
-          ))}
-          {rows.length === 0 && (
-            <tr>
-              <td colSpan={2} className="py-4 text-gray-500">
-                Просроченных задач нет.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </main>
+    </AppShell>
   );
 }

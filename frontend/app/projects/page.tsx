@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import AppShell from "@/components/AppShell";
+import Badge from "@/components/Badge";
 import { apiFetch, clearTokens } from "@/lib/api";
 
 interface Project {
@@ -26,11 +27,18 @@ const ACTIVE_STAGES = new Set([
   "paused",
 ]);
 
-const COLOR_CLASSES: Record<Project["deadline_status"], string> = {
-  green: "border-l-4 border-green-500",
-  yellow: "border-l-4 border-yellow-500",
-  red: "border-l-4 border-red-500",
-  none: "border-l-4 border-gray-300",
+const DEADLINE_DOT: Record<Project["deadline_status"], string> = {
+  green: "bg-success",
+  yellow: "bg-spark",
+  red: "bg-danger animate-pulse",
+  none: "bg-ink-faint",
+};
+
+const DEADLINE_LABEL: Record<Project["deadline_status"], string> = {
+  green: "в графике",
+  yellow: "срок близко",
+  red: "просрочен",
+  none: "без срока",
 };
 
 export default function ProjectsPage() {
@@ -62,49 +70,53 @@ export default function ProjectsPage() {
   const visible = showAll ? projects : projects.filter((p) => ACTIVE_STAGES.has(p.stage));
 
   return (
-    <main className="mx-auto max-w-5xl p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Проекты</h1>
-        <div className="flex gap-3">
-          <Link href="/leads" className="text-sm text-gray-500 underline">
-            Лиды
-          </Link>
-          <Link href="/finance" className="text-sm text-gray-500 underline">
-            Финансы
-          </Link>
-          <Link href="/files" className="text-sm text-gray-500 underline">
-            Файлы
-          </Link>
-          <Link href="/tasks" className="text-sm text-gray-500 underline">
-            Таски
-          </Link>
-          <Link href="/analytics" className="text-sm text-gray-500 underline">
-            Аналитика
-          </Link>
-          <button onClick={() => setShowAll((v) => !v)} className="text-sm underline">
-            {showAll ? "Только активные" : "Показать все"}
-          </button>
-        </div>
+    <AppShell eyebrow="Работа в проектах" title="Проекты">
+      <div className="rise-in mb-5 flex justify-end" style={{ animationDelay: "60ms" }}>
+        <button
+          onClick={() => setShowAll((v) => !v)}
+          className="rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium text-ink-dim transition hover:text-ink"
+        >
+          {showAll ? "Только активные" : "Показать все"}
+        </button>
       </div>
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && (
+        <p className="rise-in mb-4 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+          {error}
+        </p>
+      )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {visible.map((p) => (
-          <div key={p.id} className={`rounded bg-white p-4 shadow ${COLOR_CLASSES[p.deadline_status]}`}>
-            <div className="font-medium">{p.name}</div>
-            <div className="text-xs text-gray-500">stage: {p.stage}</div>
-            <div className="text-xs text-gray-500">
-              deadline: {p.deadline ?? "—"} ({p.deadline_status})
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {visible.map((p, i) => (
+          <div
+            key={p.id}
+            className="rise-in rounded-2xl border border-border bg-surface p-5 transition hover:border-border-bright"
+            style={{ animationDelay: `${100 + i * 40}ms` }}
+          >
+            <div className="mb-3 flex items-start justify-between gap-2">
+              <h3 className="font-display font-semibold leading-snug text-ink">{p.name}</h3>
+              <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${DEADLINE_DOT[p.deadline_status]}`} />
             </div>
-            {p.budget_total && (
-              <div className="text-xs text-gray-500">
-                budget: {p.budget_total} {p.currency}
-              </div>
-            )}
+            <Badge label={p.stage} tone="accent" />
+            <div className="mt-3 space-y-1 text-xs text-ink-dim">
+              <p>
+                {p.deadline ? `дедлайн ${p.deadline}` : "без дедлайна"} ·{" "}
+                <span className="text-ink-faint">{DEADLINE_LABEL[p.deadline_status]}</span>
+              </p>
+              {p.budget_total && (
+                <p className="font-mono-num text-ink">
+                  {Number(p.budget_total).toLocaleString("ru-RU")} {p.currency}
+                </p>
+              )}
+            </div>
           </div>
         ))}
+        {visible.length === 0 && (
+          <p className="col-span-full py-8 text-center text-ink-faint">
+            Проектов не видно. Либо их нет, либо ты пока не в команде ни одного.
+          </p>
+        )}
       </div>
-    </main>
+    </AppShell>
   );
 }

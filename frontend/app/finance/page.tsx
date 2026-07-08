@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import AppShell from "@/components/AppShell";
 import { apiFetch, clearTokens } from "@/lib/api";
 
 interface ByClient {
@@ -22,6 +22,10 @@ interface ByMonth {
 interface Summary {
   by_client: ByClient[];
   by_month: ByMonth[];
+}
+
+function money(v: string): string {
+  return Number(v).toLocaleString("ru-RU");
 }
 
 export default function FinancePage() {
@@ -48,68 +52,83 @@ export default function FinancePage() {
   }, []);
 
   return (
-    <main className="mx-auto max-w-5xl p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Финансы</h1>
-        <div className="flex gap-3">
-          <Link href="/projects" className="text-sm text-gray-500 underline">
-            Проекты
-          </Link>
-          <Link href="/leads" className="text-sm text-gray-500 underline">
-            Лиды
-          </Link>
-        </div>
-      </div>
-
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+    <AppShell eyebrow="Деньги любят счёт" title="Финансы">
+      {error && (
+        <p className="rise-in mb-4 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+          {error}
+        </p>
+      )}
 
       {summary && (
-        <>
-          <h2 className="mb-2 text-lg font-medium">По клиентам</h2>
-          <table className="mb-8 w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="py-2">Клиент</th>
-                <th>Invoiced</th>
-                <th>Paid</th>
-                <th>Overdue</th>
-              </tr>
-            </thead>
-            <tbody>
-              {summary.by_client.map((row) => (
-                <tr key={row.client_id} className="border-b">
-                  <td className="py-2">{row.client_name}</td>
-                  <td>{row.invoiced}</td>
-                  <td>{row.paid}</td>
-                  <td className={Number(row.overdue) > 0 ? "text-red-600" : undefined}>
-                    {row.overdue}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex flex-col gap-8">
+          <section className="rise-in" style={{ animationDelay: "60ms" }}>
+            <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-ink-faint">
+              По клиентам
+            </h2>
+            <div className="overflow-hidden rounded-2xl border border-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-surface text-left text-xs uppercase tracking-wide text-ink-faint">
+                    <th className="px-4 py-3 font-medium">Клиент</th>
+                    <th className="px-4 py-3 font-medium">Выставлено</th>
+                    <th className="px-4 py-3 font-medium">Оплачено</th>
+                    <th className="px-4 py-3 font-medium">Просрочено</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.by_client.map((row) => (
+                    <tr key={row.client_id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3 font-medium text-ink">{row.client_name}</td>
+                      <td className="px-4 py-3 font-mono-num text-ink-dim">{money(row.invoiced)}</td>
+                      <td className="px-4 py-3 font-mono-num text-success">{money(row.paid)}</td>
+                      <td
+                        className={`px-4 py-3 font-mono-num ${
+                          Number(row.overdue) > 0 ? "text-danger" : "text-ink-faint"
+                        }`}
+                      >
+                        {money(row.overdue)}
+                      </td>
+                    </tr>
+                  ))}
+                  {summary.by_client.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-6 text-center text-ink-faint">
+                        Пока считать нечего.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
-          <h2 className="mb-2 text-lg font-medium">По месяцам</h2>
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="py-2">Месяц</th>
-                <th>Invoiced</th>
-                <th>Paid</th>
-              </tr>
-            </thead>
-            <tbody>
-              {summary.by_month.map((row) => (
-                <tr key={row.month} className="border-b">
-                  <td className="py-2">{row.month}</td>
-                  <td>{row.invoiced}</td>
-                  <td>{row.paid}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
+          <section className="rise-in" style={{ animationDelay: "120ms" }}>
+            <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-ink-faint">
+              По месяцам
+            </h2>
+            <div className="overflow-hidden rounded-2xl border border-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-surface text-left text-xs uppercase tracking-wide text-ink-faint">
+                    <th className="px-4 py-3 font-medium">Месяц</th>
+                    <th className="px-4 py-3 font-medium">Выставлено</th>
+                    <th className="px-4 py-3 font-medium">Оплачено</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.by_month.map((row) => (
+                    <tr key={row.month} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3 font-medium text-ink">{row.month}</td>
+                      <td className="px-4 py-3 font-mono-num text-ink-dim">{money(row.invoiced)}</td>
+                      <td className="px-4 py-3 font-mono-num text-success">{money(row.paid)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
       )}
-    </main>
+    </AppShell>
   );
 }

@@ -15,7 +15,7 @@ export default function Home() {
       return;
     }
     const payload = decodeJwt(token);
-    router.replace(payload?.role === "student" ? "/my-tasks" : "/leads");
+    router.replace(payload?.role === "student" ? "/my-tasks" : "/dashboard");
   }, [router]);
 
   return null;

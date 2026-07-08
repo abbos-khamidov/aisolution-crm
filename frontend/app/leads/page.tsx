@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import AppShell from "@/components/AppShell";
+import Badge from "@/components/Badge";
 import { apiFetch, clearTokens, getToken } from "@/lib/api";
 import { decodeJwt } from "@/lib/jwt";
 
@@ -18,6 +19,21 @@ interface Lead {
 
 const STATUSES = ["new", "contacted", "qualified", "proposal_sent", "won", "lost"];
 
+const STATUS_TONE: Record<string, "neutral" | "accent" | "spark" | "success" | "danger"> = {
+  new: "neutral",
+  contacted: "accent",
+  qualified: "accent",
+  proposal_sent: "spark",
+  won: "success",
+  lost: "danger",
+};
+
+const FILTERS = [
+  { key: "all", label: "Все" },
+  { key: "queue", label: "Общая очередь" },
+  { key: "mine", label: "Мои лиды" },
+] as const;
+
 export default function LeadsPage() {
   const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -32,9 +48,7 @@ export default function LeadsPage() {
   }, []);
 
   async function loadLeads() {
-    let path = "/leads";
-    if (filter === "queue") path += "?owner_id=";
-    const res = await apiFetch(path);
+    const res = await apiFetch("/leads");
     if (res.status === 401) {
       clearTokens();
       router.push("/login");
@@ -52,7 +66,7 @@ export default function LeadsPage() {
   useEffect(() => {
     loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+  }, []);
 
   const visibleLeads = leads.filter((lead) => {
     if (filter === "queue") return lead.owner_id === null;
@@ -79,7 +93,7 @@ export default function LeadsPage() {
     const body: Record<string, string> = { status: nextStatus };
     if (nextStatus === "lost") {
       if (!lossReason) {
-        setError("Для отказа нужен loss_reason");
+        setError("Отказ без причины не считается — заполни loss_reason.");
         return;
       }
       body.loss_reason = lossReason;
@@ -120,118 +134,115 @@ export default function LeadsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Лиды</h1>
-        <div className="flex items-center gap-3">
-          <Link href="/projects" className="text-sm text-gray-500 underline">
-            Проекты
-          </Link>
+    <AppShell eyebrow="Воронка продаж" title="Лиды">
+      <div className="rise-in mb-5 flex gap-2" style={{ animationDelay: "60ms" }}>
+        {FILTERS.map((f) => (
           <button
-            onClick={() => {
-              clearTokens();
-              router.push("/login");
-            }}
-            className="text-sm text-gray-500 underline"
-          >
-            Выйти
-          </button>
-        </div>
-      </div>
-
-      <div className="mb-4 flex gap-2">
-        {(["all", "queue", "mine"] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`rounded px-3 py-1 text-sm ${
-              filter === f ? "bg-black text-white" : "bg-gray-100"
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+              filter === f.key
+                ? "bg-accent text-[#04121a]"
+                : "bg-surface text-ink-dim hover:text-ink"
             }`}
           >
-            {f === "all" ? "Все" : f === "queue" ? "Общая очередь" : "Мои лиды"}
+            {f.label}
           </button>
         ))}
       </div>
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && (
+        <p className="rise-in mb-4 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+          {error}
+        </p>
+      )}
 
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b text-left">
-            <th className="py-2">ID</th>
-            <th>Имя</th>
-            <th>Источник</th>
-            <th>Статус</th>
-            <th>Owner</th>
-            <th>Действия</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visibleLeads.map((lead) => (
-            <tr key={lead.id} className="border-b">
-              <td className="py-2">{lead.id}</td>
-              <td>{lead.name}</td>
-              <td>{lead.source}</td>
-              <td>{lead.status}</td>
-              <td>{lead.owner_id ?? "—"}</td>
-              <td className="flex flex-col gap-1 py-2">
-                {lead.owner_id === null && (
-                  <button
-                    onClick={() => claim(lead.id)}
-                    className="w-fit rounded bg-black px-2 py-1 text-xs text-white"
-                  >
-                    Взять в работу
-                  </button>
-                )}
-                {lead.status === "won" && canEdit(lead) && (
-                  <button
-                    onClick={() => convertToProject(lead)}
-                    className="w-fit rounded bg-green-700 px-2 py-1 text-xs text-white"
-                  >
-                    Создать проект
-                  </button>
-                )}
-                {canEdit(lead) && (
-                  <div className="flex items-center gap-1">
-                    <select
-                      value={statusDrafts[lead.id] ?? lead.status}
-                      onChange={(e) =>
-                        setStatusDrafts((prev) => ({ ...prev, [lead.id]: e.target.value }))
-                      }
-                      className="rounded border px-1 py-0.5 text-xs"
-                    >
-                      {STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                    {(statusDrafts[lead.id] ?? lead.status) === "lost" && (
-                      <input
-                        placeholder="loss_reason"
-                        value={lossReasonDrafts[lead.id] ?? ""}
-                        onChange={(e) =>
-                          setLossReasonDrafts((prev) => ({
-                            ...prev,
-                            [lead.id]: e.target.value,
-                          }))
-                        }
-                        className="rounded border px-1 py-0.5 text-xs"
-                      />
-                    )}
-                    <button
-                      onClick={() => updateStatus(lead)}
-                      className="rounded bg-gray-800 px-2 py-1 text-xs text-white"
-                    >
-                      Сохранить
-                    </button>
-                  </div>
-                )}
-              </td>
+      <div className="rise-in overflow-hidden rounded-2xl border border-border" style={{ animationDelay: "120ms" }}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-surface text-left text-xs uppercase tracking-wide text-ink-faint">
+              <th className="px-4 py-3 font-medium">Имя</th>
+              <th className="px-4 py-3 font-medium">Источник</th>
+              <th className="px-4 py-3 font-medium">Статус</th>
+              <th className="px-4 py-3 font-medium">Owner</th>
+              <th className="px-4 py-3 font-medium">Действия</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </main>
+          </thead>
+          <tbody>
+            {visibleLeads.map((lead) => (
+              <tr key={lead.id} className="border-b border-border last:border-0 hover:bg-surface/60">
+                <td className="px-4 py-3 font-medium text-ink">{lead.name}</td>
+                <td className="px-4 py-3 text-ink-dim">{lead.source}</td>
+                <td className="px-4 py-3">
+                  <Badge label={lead.status} tone={STATUS_TONE[lead.status] ?? "neutral"} />
+                </td>
+                <td className="px-4 py-3 font-mono-num text-ink-dim">{lead.owner_id ?? "—"}</td>
+                <td className="flex flex-col gap-1.5 px-4 py-3">
+                  {lead.owner_id === null && (
+                    <button
+                      onClick={() => claim(lead.id)}
+                      className="w-fit rounded-full bg-accent px-3 py-1 text-xs font-semibold text-[#04121a] transition hover:bg-accent-strong"
+                    >
+                      Взять в работу
+                    </button>
+                  )}
+                  {lead.status === "won" && canEdit(lead) && (
+                    <button
+                      onClick={() => convertToProject(lead)}
+                      className="w-fit rounded-full bg-success/90 px-3 py-1 text-xs font-semibold text-[#04160f] transition hover:bg-success"
+                    >
+                      Создать проект
+                    </button>
+                  )}
+                  {canEdit(lead) && (
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={statusDrafts[lead.id] ?? lead.status}
+                        onChange={(e) =>
+                          setStatusDrafts((prev) => ({ ...prev, [lead.id]: e.target.value }))
+                        }
+                        className="rounded-md border border-border bg-surface px-1.5 py-1 text-xs text-ink"
+                      >
+                        {STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                      {(statusDrafts[lead.id] ?? lead.status) === "lost" && (
+                        <input
+                          placeholder="причина отказа"
+                          value={lossReasonDrafts[lead.id] ?? ""}
+                          onChange={(e) =>
+                            setLossReasonDrafts((prev) => ({
+                              ...prev,
+                              [lead.id]: e.target.value,
+                            }))
+                          }
+                          className="rounded-md border border-border bg-surface px-1.5 py-1 text-xs text-ink"
+                        />
+                      )}
+                      <button
+                        onClick={() => updateStatus(lead)}
+                        className="rounded-md bg-surface-2 px-2 py-1 text-xs font-medium text-ink transition hover:bg-border-bright"
+                      >
+                        Сохранить
+                      </button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {visibleLeads.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-ink-faint">
+                  Пусто. Либо всё разобрано, либо пора запускать рекламу.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </AppShell>
   );
 }

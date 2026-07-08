@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { FileText, Check, X } from "lucide-react";
+import AppShell from "@/components/AppShell";
 import { apiFetch, clearTokens, getToken } from "@/lib/api";
 import { decodeJwt } from "@/lib/jwt";
 
@@ -62,42 +63,53 @@ export default function FilesPage() {
   }
 
   return (
-    <main className="mx-auto max-w-4xl p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Файлы на согласование</h1>
-        <Link href="/projects" className="text-sm text-gray-500 underline">
-          Проекты
-        </Link>
-      </div>
-
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+    <AppShell eyebrow="На подпись founder'у" title="Файлы на согласование">
+      {error && (
+        <p className="rise-in mb-4 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+          {error}
+        </p>
+      )}
 
       <ul className="flex flex-col gap-2">
-        {files.map((f) => (
-          <li key={f.id} className="flex items-center justify-between rounded bg-white p-3 shadow">
-            <a href={f.url} target="_blank" rel="noreferrer" className="underline">
+        {files.map((f, i) => (
+          <li
+            key={f.id}
+            className="rise-in flex items-center justify-between rounded-xl border border-border bg-surface p-4"
+            style={{ animationDelay: `${i * 50}ms` }}
+          >
+            <a
+              href={f.url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 text-sm font-medium text-ink transition hover:text-accent-strong"
+            >
+              <FileText size={16} className="text-ink-faint" />
               {f.filename}
             </a>
             {me?.role === "founder" && (
               <div className="flex gap-2">
                 <button
                   onClick={() => review(f.id, "approve")}
-                  className="rounded bg-green-700 px-2 py-1 text-xs text-white"
+                  className="flex items-center gap-1 rounded-full bg-success/90 px-3 py-1 text-xs font-semibold text-[#04160f] transition hover:bg-success"
                 >
-                  Approve
+                  <Check size={13} /> Принять
                 </button>
                 <button
                   onClick={() => review(f.id, "reject")}
-                  className="rounded bg-red-700 px-2 py-1 text-xs text-white"
+                  className="flex items-center gap-1 rounded-full bg-danger/90 px-3 py-1 text-xs font-semibold text-[#210608] transition hover:bg-danger"
                 >
-                  Reject
+                  <X size={13} /> Отклонить
                 </button>
               </div>
             )}
           </li>
         ))}
-        {files.length === 0 && <p className="text-sm text-gray-500">Нет файлов на согласование.</p>}
+        {files.length === 0 && (
+          <p className="rise-in py-8 text-center text-ink-faint">
+            Очередь пуста. Всё согласовано — можно выдохнуть.
+          </p>
+        )}
       </ul>
-    </main>
+    </AppShell>
   );
 }
