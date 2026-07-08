@@ -3,27 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { LockKeyhole, Sparkles } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Radar, Sparkles, Zap } from "lucide-react";
 import { setTokens } from "@/lib/api";
 import { decodeJwt } from "@/lib/jwt";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 const STAT_CHIPS = [
-  { label: "режим дня", value: "лиды быстро в работу" },
-  { label: "принцип", value: "каждый клиент с хозяином" },
-  { label: "фокус", value: "проекты без хаоса" },
-];
-
-const BACKDROP_QUOTES = [
-  "не теряем заявки",
-  "берём лид первым",
-  "каждое КП под контролем",
-  "клиент чувствует скорость",
-  "AI Solution CRM",
-  "работаем чисто",
-  "видим деньги",
-  "доводим до результата",
+  { label: "сайт", value: "заявка прилетела" },
+  { label: "CRM", value: "назначили владельца" },
+  { label: "проект", value: "деньги в прогнозе" },
 ];
 
 function redirectForRole(role: string): string {
@@ -34,6 +23,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -101,18 +91,7 @@ export default function LoginPage() {
     <main className="relative min-h-screen overflow-hidden">
       <div className="atmosphere" />
       <div className="grain" />
-      <div className="login-word-field" aria-hidden="true">
-        <div className="login-word-track">
-          {[...BACKDROP_QUOTES, ...BACKDROP_QUOTES].map((line, index) => (
-            <span key={`${line}-${index}`}>{line}</span>
-          ))}
-        </div>
-        <div className="login-word-track login-word-track--reverse">
-          {[...BACKDROP_QUOTES].reverse().map((line, index) => (
-            <span key={`${line}-reverse-${index}`}>{line}</span>
-          ))}
-        </div>
-      </div>
+      <div className="login-route-bg" aria-hidden="true" />
 
       <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center gap-10 px-6 py-16 lg:flex-row lg:items-stretch lg:gap-16">
         <div className="flex max-w-md flex-1 flex-col justify-center rise-in" style={{ animationDelay: "0ms" }}>
@@ -136,16 +115,16 @@ export default function LoginPage() {
           </div>
           <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-accent/20 bg-white/70 px-3 py-1.5 text-xs font-semibold text-accent-strong shadow-sm backdrop-blur">
             <Sparkles size={14} />
-            Закрытый рабочий центр AI Solution
+            Закрытая диспетчерская AI Solution
           </div>
           <h1 className="font-display text-4xl font-bold leading-[1.05] text-ink sm:text-5xl">
-            CRM, которая
+            Лид прилетел.
             <br />
-            <span className="text-accent-strong">держит темп команды.</span>
+            <span className="text-accent-strong">Команда уже на полосе.</span>
           </h1>
           <p className="mt-5 max-w-sm text-balance text-base leading-relaxed text-ink-dim">
-            AI Solution CRM — закрытая рабочая система aisolution.uz. Один вход — и вся
-            воронка, все проекты и все дедлайны на расстоянии клика.
+            AI Solution CRM показывает маршрут от заявки до проекта: кто отвечает,
+            где КП, какая сумма в прогнозе и что должно случиться дальше.
           </p>
           <p className="mt-4 flex max-w-sm gap-2 text-sm leading-relaxed text-ink-faint">
             <LockKeyhole className="mt-0.5 shrink-0 text-accent-strong" size={16} />
@@ -171,6 +150,38 @@ export default function LoginPage() {
           </div>
         </div>
 
+        <div className="login-showcase rise-in" style={{ animationDelay: "70ms" }}>
+          <div className="login-showcase-top">
+            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase text-accent-strong">
+              <Radar size={15} />
+              live route
+            </span>
+            <span className="rounded-full bg-success-soft px-2 py-1 text-xs font-semibold text-success">
+              не потеряно
+            </span>
+          </div>
+          <div className="login-flight-board">
+            <BoardRow from="Сайт" to="Лиды" value="новая заявка" delay="0s" />
+            <BoardRow from="Лиды" to="Owner" value="закреплено" delay=".5s" />
+            <BoardRow from="Owner" to="КП" value="PDF + сумма" delay="1s" />
+            <BoardRow from="КП" to="Проект" value="выиграно" delay="1.5s" />
+          </div>
+          <div className="login-route-map">
+            <span className="route-dot route-dot--a" />
+            <span className="route-dot route-dot--b" />
+            <span className="route-dot route-dot--c" />
+            <span className="route-dot route-dot--d" />
+            <span className="route-runner">
+              <Zap size={14} />
+            </span>
+            <p>заявка → ответственный → КП → проект → финансы</p>
+          </div>
+          <div className="login-showcase-bottom">
+            <span>Следующее действие видно сразу</span>
+            <ArrowRight size={16} />
+          </div>
+        </div>
+
         <div
           className="rise-in w-full max-w-sm shrink-0 self-center rounded-2xl border border-border bg-bg-elevated/88 p-8 shadow-glow backdrop-blur-xl"
           style={{ animationDelay: "80ms" }}
@@ -192,14 +203,24 @@ export default function LoginPage() {
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-ink-faint">Пароль</label>
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-ink outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 pr-10 text-sm text-ink outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((value) => !value)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-ink-faint hover:bg-surface-2 hover:text-ink"
+                  aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
 
             {error && (
@@ -253,5 +274,26 @@ export default function LoginPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+function BoardRow({
+  from,
+  to,
+  value,
+  delay,
+}: {
+  from: string;
+  to: string;
+  value: string;
+  delay: string;
+}) {
+  return (
+    <div className="login-board-row" style={{ animationDelay: delay }}>
+      <span>{from}</span>
+      <ArrowRight size={14} />
+      <span>{to}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }

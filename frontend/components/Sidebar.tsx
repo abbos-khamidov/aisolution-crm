@@ -16,6 +16,7 @@ import {
   MessageCircle,
   UserCog,
   UserCircle,
+  Network,
   type LucideIcon,
 } from "lucide-react";
 import { clearTokens } from "@/lib/api";
@@ -31,6 +32,7 @@ const STAFF_ROLES = ["founder", "manager", "developer"];
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Дашборд", icon: LayoutDashboard, roles: STAFF_ROLES },
+  { href: "/obsidian", label: "Obsidian?", icon: Network, roles: STAFF_ROLES },
   { href: "/leads", label: "Лиды", icon: Users, roles: ["founder", "manager"] },
   { href: "/projects", label: "Проекты", icon: FolderKanban, roles: STAFF_ROLES },
   { href: "/finance", label: "Финансы", icon: Wallet, roles: ["founder"] },
@@ -70,6 +72,23 @@ export default function Sidebar({ role }: { role: string | null }) {
       </div>
 
       <nav className="flex-1 space-y-1 px-3">
+        {role && STAFF_ROLES.includes(role) && (
+          <Link
+            href="/obsidian"
+            className="obsidian-launch group mb-3 block overflow-hidden rounded-2xl border border-[#7c3aed]/30 bg-[#1c1430] p-3 text-white shadow-glow"
+          >
+            <div className="flex items-center gap-3">
+              <Image src="/obsidian-app.svg" alt="Obsidian" width={42} height={42} className="rounded-xl shadow-sm" />
+              <div>
+                <p className="font-display text-sm font-semibold">Obsidian?</p>
+                <p className="text-[11px] text-white/68">виртуальный мозг CRM</p>
+              </div>
+            </div>
+            <div className="obsidian-arrows" aria-hidden="true">
+              <span>↘</span><span>↙</span><span>↗</span><span>↖</span>
+            </div>
+          </Link>
+        )}
         {items.map((item) => {
           const active = pathname === item.href;
           const Icon = item.icon;

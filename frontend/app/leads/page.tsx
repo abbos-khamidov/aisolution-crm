@@ -107,6 +107,7 @@ export default function LeadsPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [dealDrafts, setDealDrafts] = useState<Record<number, DealDraft>>({});
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
+  const [detailLeadId, setDetailLeadId] = useState<number | null>(null);
   const [manualLead, setManualLead] = useState({
     source: "other",
     name: "",
@@ -165,7 +166,7 @@ export default function LeadsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
-  const managers = users.filter((u) => u.role === "manager" && u.is_active);
+  const assignees = users.filter((u) => u.role !== "student" && u.is_active);
   const userById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
 
   function sourceLabel(lead: Lead): string {
@@ -205,6 +206,7 @@ export default function LeadsPage() {
   const queueCount = leads.filter((lead) => lead.owner_id === null).length;
   const activeCount = leads.filter((lead) => !["won", "lost"].includes(lead.status)).length;
   const selectedLead = filteredLeads.find((lead) => lead.id === selectedLeadId) ?? null;
+  const detailLead = leads.find((lead) => lead.id === detailLeadId) ?? null;
 
   function showToast(message: string) {
     setToast(message);
@@ -641,7 +643,16 @@ export default function LeadsPage() {
                       )}
                     </div>
 
-                    <div className="grid shrink-0 gap-2 sm:grid-cols-2 lg:w-64 lg:grid-cols-1">
+                    <div className="grid shrink-0 gap-2 sm:grid-cols-2 lg:w-64 lg:grid-cols-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => {
+                          setSelectedLeadId(lead.id);
+                          setDetailLeadId(lead.id);
+                        }}
+                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-accent/25 bg-accent-soft px-3 text-sm font-semibold text-accent-strong hover:border-accent"
+                      >
+                        Подробнее
+                      </button>
                       {me?.role === "founder" && (
                         <select
                           value={lead.owner_id ?? ""}
@@ -649,9 +660,9 @@ export default function LeadsPage() {
                           className="h-9 rounded-lg border border-border bg-bg px-2 text-sm text-ink"
                         >
                           <option value="">Назначить ответственного</option>
-                          {managers.map((manager) => (
-                            <option key={manager.id} value={manager.id}>
-                              {manager.name}
+                          {assignees.map((member) => (
+                            <option key={member.id} value={member.id}>
+                              {member.name}
                             </option>
                           ))}
                         </select>
@@ -803,6 +814,66 @@ export default function LeadsPage() {
         </section>
       )}
 
+      {detailLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/35 px-4 py-6">
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-border bg-white p-5 shadow-glow">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase text-ink-faint">Карточка лида</p>
+                <h2 className="mt-1 font-display text-2xl font-semibold text-ink">{detailLead.name}</h2>
+                <p className="mt-1 text-sm text-ink-dim">
+                  {sourceLabel(detailLead)} · {new Date(detailLead.created_at).toLocaleString("ru-RU")}
+                </p>
+              </div>
+              <button
+                onClick={() => setDetailLeadId(null)}
+                className="rounded-lg bg-bg p-2 text-ink-dim hover:text-ink"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-bg p-4">
+              <LeadTimeline status={detailLead.status} />
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <section className="rounded-2xl border border-border bg-surface p-4">
+                <h3 className="font-display text-base font-semibold text-ink">Информация</h3>
+                <div className="mt-3 space-y-2 text-sm text-ink-dim">
+                  <p><span className="font-semibold text-ink">Статус:</span> {STATUS_LABEL[detailLead.status] ?? detailLead.status}</p>
+                  <p><span className="font-semibold text-ink">Ответственный:</span> {detailLead.owner_id ? userById.get(detailLead.owner_id)?.name ?? detailLead.owner_id : "не назначен"}</p>
+                  {detailLead.phone && <p><span className="font-semibold text-ink">Телефон:</span> {detailLead.phone}</p>}
+                  {detailLead.email && <p><span className="font-semibold text-ink">Email:</span> {detailLead.email}</p>}
+                  {detailLead.loss_reason && <p><span className="font-semibold text-ink">Причина отказа:</span> {detailLead.loss_reason}</p>}
+                </div>
+                {detailLead.message && (
+                  <p className="mt-4 whitespace-pre-wrap rounded-xl bg-bg px-3 py-2 text-sm leading-6 text-ink-dim">
+                    {detailLead.message}
+                  </p>
+                )}
+              </section>
+
+              <section className="rounded-2xl border border-border bg-surface p-4">
+                <h3 className="font-display text-base font-semibold text-ink">КП и деньги</h3>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <DealMetric label="Мин" value={detailLead.expected_amount_min} currency={detailLead.currency} />
+                  <DealMetric label="Сред" value={detailLead.expected_amount_mid} currency={detailLead.currency} />
+                  <DealMetric label="Макс" value={detailLead.expected_amount_max} currency={detailLead.currency} />
+                  <DealMetric label="Финал" value={detailLead.selected_amount} currency={detailLead.currency} />
+                </div>
+                <p className="mt-3 text-sm text-ink-dim">
+                  Пакет: <span className="font-semibold text-ink">{detailLead.selected_package ?? "не выбран"}</span>
+                </p>
+                <p className="mt-1 text-sm text-ink-dim">
+                  PDF КП: <span className="font-semibold text-ink">{detailLead.proposal_file_id ? `файл #${detailLead.proposal_file_id}` : "не прикреплён"}</span>
+                </p>
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showManualModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 px-4">
           <div className="w-full max-w-lg rounded-2xl border border-border bg-surface p-5 shadow-glow">
@@ -873,6 +944,25 @@ export default function LeadsPage() {
         </div>
       )}
     </AppShell>
+  );
+}
+
+function DealMetric({
+  label,
+  value,
+  currency,
+}: {
+  label: string;
+  value: string | null;
+  currency: string;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-bg p-3">
+      <p className="text-xs text-ink-faint">{label}</p>
+      <p className="mt-1 font-mono-num text-sm font-semibold text-ink">
+        {value ? `${Number(value).toLocaleString("ru-RU")} ${currency}` : "—"}
+      </p>
+    </div>
   );
 }
 

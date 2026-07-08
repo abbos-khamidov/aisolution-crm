@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getToken } from "@/lib/api";
+import { apiFetch, getToken } from "@/lib/api";
 import { decodeJwt } from "@/lib/jwt";
 import Sidebar from "@/components/Sidebar";
 
@@ -23,6 +24,15 @@ const MOOD_LINES = [
   "Меньше шума, больше действий: назначить, связаться, закрыть, перевести в проект.",
 ];
 
+interface GoalState {
+  year: number;
+  currency: string;
+  target_amount: string;
+  current_amount: string;
+  remaining_amount: string;
+  percent: number;
+}
+
 export default function AppShell({
   title,
   eyebrow,
@@ -36,6 +46,9 @@ export default function AppShell({
   const [role, setRole] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [moodIndex, setMoodIndex] = useState(0);
+  const [goal, setGoal] = useState<GoalState | null>(null);
+  const [goalDraft, setGoalDraft] = useState("");
+  const [goalSaving, setGoalSaving] = useState(false);
 
   useEffect(() => {
     const token = getToken();
@@ -43,8 +56,19 @@ export default function AppShell({
       router.replace("/login");
       return;
     }
-    setRole(decodeJwt(token)?.role ?? null);
+    const payload = decodeJwt(token);
+    setRole(payload?.role ?? null);
     setReady(true);
+    if (payload?.role === "founder") {
+      apiFetch("/crm-goal")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!data) return;
+          setGoal(data);
+          setGoalDraft(data.target_amount === "0" ? "" : data.target_amount);
+        })
+        .catch(() => null);
+    }
   }, [router]);
 
   useEffect(() => {
@@ -55,6 +79,24 @@ export default function AppShell({
   }, []);
 
   if (!ready) return null;
+
+  async function saveGoal() {
+    if (!goalDraft.trim()) return;
+    setGoalSaving(true);
+    const res = await apiFetch("/crm-goal", {
+      method: "PATCH",
+      body: JSON.stringify({
+        year: 2026,
+        currency: goal?.currency ?? "USD",
+        target_amount: goalDraft,
+      }),
+    });
+    setGoalSaving(false);
+    if (!res.ok) return;
+    const data = await res.json();
+    setGoal(data);
+    setGoalDraft(data.target_amount);
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-bg">
@@ -74,6 +116,24 @@ export default function AppShell({
       <main className="relative z-10 ml-60 min-h-screen px-8 py-8 lg:px-12">
         <div className="mx-auto max-w-6xl">
           <header className="mb-8 rise-in">
+            {role === "founder" && (
+              <GoalBar
+                goal={goal}
+                draft={goalDraft}
+                saving={goalSaving}
+                onDraft={setGoalDraft}
+                onSave={saveGoal}
+              />
+            )}
+            <div className="mb-5 flex justify-end">
+              <Link href="/obsidian" className="obsidian-top-pulse inline-flex items-center gap-3 rounded-2xl border border-[#7c3aed]/30 bg-[#1b1231] px-4 py-3 text-white shadow-glow">
+                <span className="obsidian-gem obsidian-gem--small" />
+                <span>
+                  <span className="block font-display text-sm font-semibold">Obsidian?</span>
+                  <span className="block text-[11px] text-white/65">мозг процессов</span>
+                </span>
+              </Link>
+            </div>
             {eyebrow && (
               <span className="mb-1 block text-xs font-medium uppercase tracking-wider text-ink-faint">
                 {eyebrow}
@@ -90,5 +150,63 @@ export default function AppShell({
         </div>
       </main>
     </div>
+  );
+}
+
+function GoalBar({
+  goal,
+  draft,
+  saving,
+  onDraft,
+  onSave,
+}: {
+  goal: GoalState | null;
+  draft: string;
+  saving: boolean;
+  onDraft: (value: string) => void;
+  onSave: () => void;
+}) {
+  const target = Number(goal?.target_amount ?? 0);
+  const current = Number(goal?.current_amount ?? 0);
+  const remaining = Number(goal?.remaining_amount ?? 0);
+  const percent = goal?.percent ?? 0;
+  const currency = goal?.currency ?? "USD";
+
+  return (
+    <section className="mb-5 overflow-hidden rounded-2xl border border-accent/20 bg-white/88 p-4 shadow-glow backdrop-blur">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="font-display text-lg font-semibold text-ink">Цель 2026 год</p>
+          <p className="mt-1 text-sm text-ink-dim">
+            Загружаем прогресс: {current.toLocaleString("ru-RU")} / {target.toLocaleString("ru-RU")} {currency}. Осталось {remaining.toLocaleString("ru-RU")} {currency}.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            value={draft}
+            onChange={(e) => onDraft(e.target.value)}
+            placeholder="Поставь цель"
+            inputMode="decimal"
+            className="h-10 rounded-lg border border-border bg-bg px-3 text-sm text-ink outline-none focus:border-accent"
+          />
+          <button
+            onClick={onSave}
+            disabled={saving}
+            className="h-10 rounded-lg bg-accent px-4 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {saving ? "Сохраняю" : "Изменить цель"}
+          </button>
+        </div>
+      </div>
+      <div className="mt-4 h-3 overflow-hidden rounded-full bg-surface-2">
+        <div
+          className="goal-progress-fill h-full rounded-full"
+          style={{ width: `${Math.min(100, percent)}%` }}
+        />
+      </div>
+      <p className="mt-2 text-right font-mono-num text-xs font-semibold text-accent-strong">
+        {percent}% загружено
+      </p>
+    </section>
   );
 }

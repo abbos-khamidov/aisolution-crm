@@ -1,6 +1,6 @@
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 
 from app.core.deps import CurrentUser, require_founder, require_staff_role
@@ -70,6 +70,11 @@ async def get_me(user: CurrentUser = Depends(require_staff_role)) -> dict:
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return dict(row)
+
+
+@router.head("/me")
+async def head_me(user: CurrentUser = Depends(require_staff_role)) -> Response:
+    return Response(status_code=status.HTTP_200_OK)
 
 
 @router.patch("/me")

@@ -654,14 +654,14 @@ async def patch_lead(
                 )
             if body.owner_id is not None:
                 assignee = await conn.fetchval(
-                    "SELECT id FROM users WHERE id = $1 AND role = 'manager' "
+                    "SELECT id FROM users WHERE id = $1 AND role IN ('founder', 'manager', 'developer') "
                     "AND is_active AND deleted_at IS NULL",
                     body.owner_id,
                 )
                 if assignee is None:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Lead owner must be an active manager",
+                        detail="Lead owner must be an active team member",
                     )
 
             new_status = body.status if body.status is not None else current["status"]

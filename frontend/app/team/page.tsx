@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import Badge from "@/components/Badge";
 import { apiFetch, clearTokens } from "@/lib/api";
@@ -39,6 +40,8 @@ export default function TeamPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [drafts, setDrafts] = useState<Record<number, UserDraft>>({});
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<number, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
@@ -154,7 +157,23 @@ export default function TeamPage() {
       <div className="mb-6 grid gap-3 rounded-2xl border border-border bg-surface p-4 md:grid-cols-7">
         <input className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink" placeholder="Имя" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <input className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        <input className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink" placeholder="Пароль" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+        <div className="relative">
+          <input
+            className="w-full rounded-lg border border-border bg-bg px-3 py-2 pr-10 text-sm text-ink"
+            placeholder="Пароль"
+            type={showCreatePassword ? "text" : "password"}
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+          />
+          <button
+            type="button"
+            onClick={() => setShowCreatePassword((value) => !value)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-ink-faint hover:bg-surface-2 hover:text-ink"
+            aria-label={showCreatePassword ? "Скрыть пароль" : "Показать пароль"}
+          >
+            {showCreatePassword ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        </div>
         <input className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink" placeholder="Телефон" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         <select className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-ink" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
           {ROLES.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
@@ -231,13 +250,28 @@ export default function TeamPage() {
                   />
                 </td>
                 <td className="px-4 py-3">
-                  <input
-                    className="w-36 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-ink"
-                    value={draft?.password ?? ""}
-                    placeholder="не менять"
-                    type="password"
-                    onChange={(e) => updateDraft(u.id, { password: e.target.value })}
-                  />
+                  <div className="relative w-36">
+                    <input
+                      className="w-full rounded-md border border-border bg-surface px-2 py-1.5 pr-8 text-xs text-ink"
+                      value={draft?.password ?? ""}
+                      placeholder="не менять"
+                      type={visiblePasswords[u.id] ? "text" : "password"}
+                      onChange={(e) => updateDraft(u.id, { password: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVisiblePasswords((current) => ({
+                          ...current,
+                          [u.id]: !current[u.id],
+                        }))
+                      }
+                      className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-ink-faint hover:bg-surface-2 hover:text-ink"
+                      aria-label={visiblePasswords[u.id] ? "Скрыть пароль" : "Показать пароль"}
+                    >
+                      {visiblePasswords[u.id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
                 </td>
                 <td className="px-4 py-3"><Badge label={u.is_active ? "active" : "off"} tone={u.is_active ? "success" : "danger"} /></td>
                 <td className="px-4 py-3">
