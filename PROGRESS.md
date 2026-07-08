@@ -9,13 +9,20 @@
   пункт про Docker ниже.
 
 ## Текущая фаза
-Фаза 0: Фундамент — done (с одной зафиксированной оговоркой, см. ниже).
-Следующая: Фаза 1 — Лиды и owner-логика.
+Фаза 1: Лиды и owner-логика — done.
+Следующая: Фаза 2 — Клиенты и проекты.
 
 ## Завершено
 - Фаза 0: monorepo (`/backend`, `/frontend`), первая Alembic-миграция (`users`,
   `events`), JWT auth (`/auth/login`, `/auth/refresh`), CI (ruff + eslint + tsc +
   next build), docker-compose.yml + Dockerfile'ы, seed-скрипт для founder'а.
+- Фаза 1: таблица `leads`, `POST /leads/webhook/website`, `POST /leads` (ручной
+  ввод), `GET /leads` (фильтры status/source/owner_id), `POST /leads/{id}/claim`
+  (атомарный UPDATE, конкурентный тест подтверждает: ровно один claim побеждает,
+  второй — 409), `PATCH /leads/{id}` (403 не-owner'у, 400 без loss_reason при
+  lost), события created/assigned/status_changed/note_added. Frontend: `/login`,
+  `/leads` (очередь/мои лиды/все, claim-кнопка, форма смены статуса с
+  обязательным loss_reason).
 
 ## Decisions & Assumptions
 
@@ -66,15 +73,44 @@
   `5433`, не `5432`**, чтобы не конфликтовать с локальным Postgres 16 (Homebrew),
   который уже занимает 5432 на машине разработки.
 
+- **[2026-07-08] Claim — атомарный `UPDATE ... WHERE owner_id IS NULL OR
+  $is_founder`, без предварительного SELECT.** Единственный способ гарантировать
+  "ровно один побеждает" при конкурентных запросах — атомарность на уровне
+  одного SQL statement, а не read-then-write в коде. Подтверждено тестом
+  `test_concurrent_claim_only_one_wins` (`asyncio.gather` двух claim к одному
+  лиду → `[200, 409]`).
+
+- **[2026-07-08] PATCH /leads/{id} — permission-условие упрощено до
+  `is_founder OR owner_id = me`.** Это математически эквивалентно правилу из
+  CRM_SPEC.md ("пока owner не назначен — менять может только founder; после —
+  только owner или founder"): если `owner_id IS NULL` и я не founder, условие
+  `owner_id = me` ложно → 403, что и требуется.
+
+- **[2026-07-08] `first_response_at` заполняется автоматически** при первом
+  переходе статуса из `new` в любой другой (используется в аналитике фазы 7 —
+  "время в каждом статусе"). Явно не специфицировано в CRM_SPEC.md раздел 3,
+  но это единственная точка, где у поля есть смысл without ручного API для
+  его простановки.
+
+- **[2026-07-08] Ручное создание лида (`POST /leads`) не разрешает
+  `source=website`** (для этого есть отдельный webhook) — источник ограничен
+  `instagram|telegram|facebook|referral|other`. И webhook, и ручное создание
+  всегда ставят `owner_id=NULL` (лид уходит в общую очередь) — менеджер,
+  добавивший лида вручную, потом claim'ит его тем же способом, что и входящий
+  лид. Это самый простой вариант, не вводящий отдельную ветку логики "создал =
+  сразу owner".
+
 ## Known issues / TODO
 - Docker-compose live run не проверен (см. Decisions выше) — проверить на
   реальной машине с установленным Docker/Colima перед деплоем.
-- Тестов (pytest) для фазы 0 нет — явно не требовались acceptance-критериями;
-  первый реальный тест появится в фазе 1 (concurrency-тест на claim лида,
-  обязателен по BUILD_PHASES.md).
+- `POST /leads/webhook/website` не проверяет подпись/секрет запроса — открытый
+  endpoint (как обычный webhook с сайта). Если станет проблемой (спам-лиды) —
+  добавить shared-secret заголовок, не блокер для MVP.
+- Frontend leads-страница — минимальный интерфейс без пагинации/сортировки
+  (лидов пока мало). Не оптимизировано, т.к. вне acceptance-критериев фазы 1.
 
 ## С чего продолжить следующую сессию
-Фаза 1 (`BUILD_PHASES.md` раздел "Фаза 1"): таблица `leads`, webhook,
-claim/PATCH с owner-логикой, events, concurrency-тест. Открыть
-`backend/app/api/`, добавить `leads.py`, миграцию
-`backend/alembic/versions/`.
+Фаза 2 (`BUILD_PHASES.md` раздел "Фаза 2 — Клиенты и проекты"): конвертация
+won-лида в client+project одним действием, CRUD projects (+ project_members
+m2m), milestones, дашборд по дедлайну. Открыть `backend/app/api/`, добавить
+`clients.py`/`projects.py`, миграцию `backend/alembic/versions/`.

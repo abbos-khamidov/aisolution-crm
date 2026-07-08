@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api.auth import router as auth_router
+from app.api.leads import router as leads_router
 from app.db.pool import close_pool, init_pool
 
 
@@ -15,6 +16,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="aisolutioncrm", lifespan=lifespan)
 app.include_router(auth_router)
+app.include_router(leads_router)
 
 
 @app.get("/health")
