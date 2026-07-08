@@ -48,16 +48,41 @@ def _row_to_dict(row) -> dict:
     return dict(row)
 
 
+async def _pick_round_robin_manager(conn) -> int | None:
+    """Least-loaded + longest-idle active manager (CRM_SPEC.md section 7 —
+    auto round-robin, explicitly approved by founder on 2026-07-08 as the
+    "separate decision" the spec deferred). Ties broken by whoever has gone
+    longest without a new lead, so it behaves like a rotation rather than
+    always favoring one manager when load is equal. Returns None if there
+    are no active managers — a lead is never blocked on this, it just stays
+    unowned (same as the pre-round-robin behavior).
+    """
+    return await conn.fetchval(
+        """
+        SELECT u.id
+        FROM users u
+        LEFT JOIN leads l
+            ON l.owner_id = u.id AND l.deleted_at IS NULL AND l.status NOT IN ('won', 'lost')
+        WHERE u.role = 'manager' AND u.is_active AND u.deleted_at IS NULL
+        GROUP BY u.id
+        ORDER BY COUNT(l.id) ASC, COALESCE(MAX(l.created_at), 'epoch'::timestamptz) ASC, u.id ASC
+        LIMIT 1
+        """
+    )
+
+
 async def _create_lead(
     source: str, body: WebsiteLeadIn | ManualLeadIn, actor_id: int | None
 ) -> dict:
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            owner_id = await _pick_round_robin_manager(conn)
+
             row = await conn.fetchrow(
                 f"""
-                INSERT INTO leads (source, name, phone, email, message, utm)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO leads (source, name, phone, email, message, utm, owner_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING {LEAD_FIELDS}
                 """,
                 source,
@@ -66,8 +91,18 @@ async def _create_lead(
                 body.email,
                 body.message,
                 body.utm,
+                owner_id,
             )
             await record_event(conn, "lead", row["id"], actor_id, "created", {"source": source})
+            if owner_id is not None:
+                await record_event(
+                    conn,
+                    "lead",
+                    row["id"],
+                    None,
+                    "assigned",
+                    {"owner_id": owner_id, "reason": "round_robin"},
+                )
     return _row_to_dict(row)
 
 
@@ -249,29 +284,36 @@ async def claim_lead(lead_id: int, user: CurrentUser = Depends(require_sales_rol
 
     async with pool.acquire() as conn:
         async with conn.transaction():
-            row = await conn.fetchrow(
-                f"""
-                UPDATE leads
-                SET owner_id = $1
-                WHERE id = $2 AND deleted_at IS NULL AND (owner_id IS NULL OR $3)
-                RETURNING {LEAD_FIELDS}
-                """,
-                user.id,
+            current = await conn.fetchrow(
+                "SELECT owner_id FROM leads WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
                 lead_id,
-                is_founder,
             )
-            if row is None:
-                existing = await conn.fetchrow(
-                    "SELECT id, owner_id FROM leads WHERE id = $1 AND deleted_at IS NULL", lead_id
+            if current is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+
+            if current["owner_id"] == user.id:
+                # Idempotent: round-robin may have already assigned this lead
+                # to the same manager who's now clicking "claim" in the UI —
+                # that's success, not a conflict.
+                row = await conn.fetchrow(
+                    f"SELECT {LEAD_FIELDS} FROM leads WHERE id = $1", lead_id
                 )
-                if existing is None:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found"
-                    )
+                return _row_to_dict(row)
+
+            if current["owner_id"] is not None and not is_founder:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Lead already claimed by another owner",
                 )
+
+            row = await conn.fetchrow(
+                f"""
+                UPDATE leads SET owner_id = $1 WHERE id = $2
+                RETURNING {LEAD_FIELDS}
+                """,
+                user.id,
+                lead_id,
+            )
             await record_event(
                 conn, "lead", lead_id, user.id, "assigned", {"owner_id": user.id}
             )
