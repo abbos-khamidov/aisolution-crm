@@ -3,16 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Eye, EyeOff, LockKeyhole, Radar, Sparkles, Zap } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Radar, Sparkles } from "lucide-react";
 import { setTokens } from "@/lib/api";
 import { decodeJwt } from "@/lib/jwt";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 const STAT_CHIPS = [
-  { label: "сайт", value: "заявка прилетела" },
-  { label: "CRM", value: "назначили владельца" },
-  { label: "проект", value: "деньги в прогнозе" },
+  { label: "01", value: "заявка попадает в радар" },
+  { label: "02", value: "CRM назначает владельца" },
+  { label: "03", value: "сумма летит в прогноз" },
 ];
 
 function redirectForRole(role: string): string {
@@ -24,6 +24,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -31,7 +32,9 @@ export default function LoginPage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    const introTimer = window.setTimeout(() => setShowIntro(false), 10000);
     return () => {
+      window.clearTimeout(introTimer);
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
@@ -88,13 +91,14 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden">
+    <main className={`relative min-h-screen overflow-hidden ${showIntro ? "login-has-intro" : ""}`}>
+      {showIntro && <LoginIntro onDone={() => setShowIntro(false)} />}
       <div className="atmosphere" />
       <div className="grain" />
       <div className="login-route-bg" aria-hidden="true" />
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center gap-10 px-6 py-16 lg:flex-row lg:items-stretch lg:gap-16">
-        <div className="flex max-w-md flex-1 flex-col justify-center rise-in" style={{ animationDelay: "0ms" }}>
+      <div className="relative z-10 mx-auto grid min-h-screen max-w-6xl items-center gap-10 px-6 py-16 lg:grid-cols-[1fr_390px] lg:gap-20">
+        <div className="rise-in max-w-xl" style={{ animationDelay: "0ms" }}>
           <div className="mb-6 flex items-center gap-4">
             <Image
               src="/logo-light.png"
@@ -147,38 +151,6 @@ export default function LoginPage() {
                 </span>
               </div>
             ))}
-          </div>
-        </div>
-
-        <div className="login-showcase rise-in" style={{ animationDelay: "70ms" }}>
-          <div className="login-showcase-top">
-            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase text-accent-strong">
-              <Radar size={15} />
-              live route
-            </span>
-            <span className="rounded-full bg-success-soft px-2 py-1 text-xs font-semibold text-success">
-              не потеряно
-            </span>
-          </div>
-          <div className="login-flight-board">
-            <BoardRow from="Сайт" to="Лиды" value="новая заявка" delay="0s" />
-            <BoardRow from="Лиды" to="Owner" value="закреплено" delay=".5s" />
-            <BoardRow from="Owner" to="КП" value="PDF + сумма" delay="1s" />
-            <BoardRow from="КП" to="Проект" value="выиграно" delay="1.5s" />
-          </div>
-          <div className="login-route-map">
-            <span className="route-dot route-dot--a" />
-            <span className="route-dot route-dot--b" />
-            <span className="route-dot route-dot--c" />
-            <span className="route-dot route-dot--d" />
-            <span className="route-runner">
-              <Zap size={14} />
-            </span>
-            <p>заявка → ответственный → КП → проект → финансы</p>
-          </div>
-          <div className="login-showcase-bottom">
-            <span>Следующее действие видно сразу</span>
-            <ArrowRight size={16} />
           </div>
         </div>
 
@@ -277,23 +249,47 @@ export default function LoginPage() {
   );
 }
 
-function BoardRow({
-  from,
-  to,
-  value,
-  delay,
-}: {
-  from: string;
-  to: string;
-  value: string;
-  delay: string;
-}) {
+function LoginIntro({ onDone }: { onDone: () => void }) {
   return (
-    <div className="login-board-row" style={{ animationDelay: delay }}>
-      <span>{from}</span>
-      <ArrowRight size={14} />
-      <span>{to}</span>
-      <strong>{value}</strong>
-    </div>
+    <section className="login-intro">
+      <div className="intro-map" aria-hidden="true">
+        <span className="intro-line intro-line--one" />
+        <span className="intro-line intro-line--two" />
+        <span className="intro-line intro-line--three" />
+        <span className="intro-packet intro-packet--one" />
+        <span className="intro-packet intro-packet--two" />
+        <span className="intro-packet intro-packet--three" />
+      </div>
+      <div className="intro-core">
+        <Image src="/logo-light.png" alt="AI Solution" width={96} height={96} className="h-20 w-20 object-contain" priority />
+        <p className="intro-kicker">
+          <Radar size={16} />
+          live route
+        </p>
+        <h2>
+          Заявка заходит.
+          <br />
+          CRM собирает маршрут.
+        </h2>
+        <p className="intro-copy">
+          Лид, владелец, КП, проект и деньги сходятся в один рабочий центр.
+        </p>
+      </div>
+      <div className="intro-steps">
+        <span>Сайт</span>
+        <ArrowRight size={16} />
+        <span>Лид</span>
+        <ArrowRight size={16} />
+        <span>КП</span>
+        <ArrowRight size={16} />
+        <span>Проект</span>
+        <ArrowRight size={16} />
+        <span>Финансы</span>
+      </div>
+      <button type="button" onClick={onDone} className="intro-skip">
+        Пропустить
+      </button>
+      <div className="intro-progress" />
+    </section>
   );
 }
