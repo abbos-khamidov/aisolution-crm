@@ -48,6 +48,16 @@ services:
     volumes:
       - ./bot:/app
 
+  bot-leads:
+    build: ./bot-leads
+    environment:
+      BOT_TOKEN: ${LEADS_BOT_TOKEN:-000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA}
+      CRM_API_URL: http://backend:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./bot-leads:/app
+
   frontend:
     build: ./frontend
     environment:

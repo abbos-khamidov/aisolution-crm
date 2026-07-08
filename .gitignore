@@ -9,11 +9,18 @@ bot/__pycache__/
 bot/**/__pycache__/
 bot/.pytest_cache/
 bot/.ruff_cache/
+bot-leads/.venv/
+bot-leads/__pycache__/
+bot-leads/**/__pycache__/
+bot-leads/.pytest_cache/
+bot-leads/.ruff_cache/
 *.pyc
 
 # Env
+/.env
 backend/.env
 bot/.env
+bot-leads/.env
 frontend/.env*
 !*.env.example
 
