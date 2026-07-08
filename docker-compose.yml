@@ -50,8 +50,9 @@ services:
 
   bot-leads:
     build: ./bot-leads
+    env_file:
+      - ./bot-leads/.env
     environment:
-      BOT_TOKEN: ${LEADS_BOT_TOKEN:-000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA}
       CRM_API_URL: http://backend:8000
     depends_on:
       - backend
@@ -62,6 +63,7 @@ services:
     build: ./frontend
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_TEAM_CHAT_URL: ${TEAM_CHAT_URL:-}
     ports:
       - "3000:3000"
     depends_on:

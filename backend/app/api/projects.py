@@ -2,9 +2,11 @@ import datetime as dt
 from decimal import Decimal
 from typing import Literal
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
+from app.core.config import settings
 from app.core.deps import CurrentUser, require_staff_role
 from app.db.events import record_event
 from app.db.pool import get_pool
@@ -75,6 +77,11 @@ class MilestonePatch(BaseModel):
     status: Literal["pending", "done", "overdue"] | None = None
 
 
+class ProjectCommentIn(BaseModel):
+    text: str
+    mentioned_user_ids: list[int] = []
+
+
 async def _get_project_or_404(conn, project_id: int, for_update: bool = False):
     suffix = " FOR UPDATE" if for_update else ""
     row = await conn.fetchrow(
@@ -89,6 +96,48 @@ async def _get_project_or_404(conn, project_id: int, for_update: bool = False):
 
 def _can_edit_project(user: CurrentUser, owner_id: int | None) -> bool:
     return user.role == "founder" or owner_id == user.id
+
+
+async def _notify_project_group(
+    project_id: int, actor_id: int, text: str, mentions: list[int]
+) -> None:
+    if not settings.telegram_notify_bot_token or not settings.project_notify_chat_id:
+        return
+
+    pool = get_pool()
+    row = await pool.fetchrow(
+        """
+        SELECT p.name AS project_name, c.company_name, c.name AS client_name, u.name AS actor_name
+        FROM projects p
+        JOIN clients c ON c.id = p.client_id
+        LEFT JOIN users u ON u.id = $2
+        WHERE p.id = $1
+        """,
+        project_id,
+        actor_id,
+    )
+    mentioned_rows = await pool.fetch(
+        "SELECT name FROM users WHERE id = ANY($1::bigint[])",
+        mentions,
+    )
+    mentioned = " ".join(f"@{r['name']}" for r in mentioned_rows)
+    company = row["company_name"] or row["client_name"] if row else f"project #{project_id}"
+    message = (
+        f"Проект: {company}\n"
+        f"Автор: {row['actor_name'] if row else actor_id}\n"
+        f"{text}"
+    )
+    if mentioned:
+        message = f"{message}\n\nКому: {mentioned}"
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{settings.telegram_notify_bot_token}/sendMessage",
+                json={"chat_id": settings.project_notify_chat_id, "text": message},
+            )
+    except httpx.HTTPError:
+        return
 
 
 @router.post("/projects", status_code=status.HTTP_201_CREATED)
@@ -133,27 +182,40 @@ async def list_projects(
     user: CurrentUser = Depends(require_staff_role),
 ) -> list[dict]:
     pool = get_pool()
-    conditions = ["deleted_at IS NULL"]
+    conditions = ["p.deleted_at IS NULL", "c.deleted_at IS NULL"]
     params: list = []
 
     if stage is not None:
         params.append(stage)
-        conditions.append(f"stage = ${len(params)}")
+        conditions.append(f"p.stage = ${len(params)}")
     if owner_id is not None:
         params.append(owner_id)
-        conditions.append(f"owner_id = ${len(params)}")
+        conditions.append(f"p.owner_id = ${len(params)}")
     if client_id is not None:
         params.append(client_id)
-        conditions.append(f"client_id = ${len(params)}")
+        conditions.append(f"p.client_id = ${len(params)}")
 
     visible_ids = await get_visible_project_ids(pool, user)
     if visible_ids is not None:
         params.append(visible_ids)
-        conditions.append(f"id = ANY(${len(params)}::bigint[])")
+        conditions.append(f"p.id = ANY(${len(params)}::bigint[])")
 
     query = (
-        f"SELECT {PROJECT_FIELDS} FROM projects WHERE {' AND '.join(conditions)} "
-        "ORDER BY created_at DESC"
+        f"""
+        SELECT p.id, p.client_id, p.name, p.description, p.stage, p.owner_id,
+               p.start_date, p.deadline, p.budget_total, p.currency, p.created_at,
+               c.name AS client_name, c.company_name, c.contact_info,
+               CASE
+                   WHEN p.deadline IS NULL THEN 'none'
+                   WHEN p.deadline < CURRENT_DATE THEN 'red'
+                   WHEN p.deadline < CURRENT_DATE + INTERVAL '7 days' THEN 'yellow'
+                   ELSE 'green'
+               END AS deadline_status
+        FROM projects p
+        JOIN clients c ON c.id = p.client_id
+        WHERE {' AND '.join(conditions)}
+        ORDER BY p.created_at DESC
+        """
     )
     rows = await pool.fetch(query, *params)
     return [dict(r) for r in rows]
@@ -164,11 +226,85 @@ async def get_project(project_id: int, user: CurrentUser = Depends(require_staff
     pool = get_pool()
     await require_project_visible(pool, user, project_id)
     row = await pool.fetchrow(
-        f"SELECT {PROJECT_FIELDS} FROM projects WHERE id = $1 AND deleted_at IS NULL", project_id
+        """
+        SELECT p.id, p.client_id, p.name, p.description, p.stage, p.owner_id,
+               p.start_date, p.deadline, p.budget_total, p.currency, p.created_at,
+               c.name AS client_name, c.company_name, c.contact_info,
+               CASE
+                   WHEN p.deadline IS NULL THEN 'none'
+                   WHEN p.deadline < CURRENT_DATE THEN 'red'
+                   WHEN p.deadline < CURRENT_DATE + INTERVAL '7 days' THEN 'yellow'
+                   ELSE 'green'
+               END AS deadline_status
+        FROM projects p
+        JOIN clients c ON c.id = p.client_id
+        WHERE p.id = $1 AND p.deleted_at IS NULL AND c.deleted_at IS NULL
+        """,
+        project_id,
     )
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return dict(row)
+
+
+@router.get("/projects/{project_id}/activity")
+async def list_project_activity(
+    project_id: int, user: CurrentUser = Depends(require_staff_role)
+) -> list[dict]:
+    pool = get_pool()
+    await require_project_visible(pool, user, project_id)
+    rows = await pool.fetch(
+        """
+        SELECT e.id, e.entity_type, e.entity_id, e.actor_id, u.name AS actor_name,
+               e.event_type, e.payload, e.created_at
+        FROM events e
+        LEFT JOIN users u ON u.id = e.actor_id
+        WHERE e.entity_type = 'project' AND e.entity_id = $1
+        ORDER BY e.created_at DESC
+        LIMIT 100
+        """,
+        project_id,
+    )
+    return [dict(r) for r in rows]
+
+
+@router.post("/projects/{project_id}/comments", status_code=status.HTTP_201_CREATED)
+async def add_project_comment(
+    project_id: int, body: ProjectCommentIn, user: CurrentUser = Depends(require_staff_role)
+) -> dict:
+    if not body.text.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Comment is empty")
+    pool = get_pool()
+    await require_project_visible(pool, user, project_id)
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            project = await _get_project_or_404(conn, project_id)
+            if not _can_edit_project(user, project["owner_id"]):
+                member = await conn.fetchval(
+                    "SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2 "
+                    "AND deleted_at IS NULL",
+                    project_id,
+                    user.id,
+                )
+                if not member:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Only project members can comment",
+                    )
+            event = await conn.fetchrow(
+                """
+                INSERT INTO events (entity_type, entity_id, actor_id, event_type, payload)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING id, entity_type, entity_id, actor_id, event_type, payload, created_at
+                """,
+                "project",
+                project_id,
+                user.id,
+                "comment",
+                {"text": body.text.strip(), "mentioned_user_ids": body.mentioned_user_ids},
+            )
+    await _notify_project_group(project_id, user.id, body.text.strip(), body.mentioned_user_ids)
+    return dict(event)
 
 
 @router.patch("/projects/{project_id}")

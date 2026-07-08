@@ -13,6 +13,9 @@ import {
   BarChart3,
   ClipboardCheck,
   LogOut,
+  MessageCircle,
+  UserCog,
+  UserCircle,
   type LucideIcon,
 } from "lucide-react";
 import { clearTokens } from "@/lib/api";
@@ -32,6 +35,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/projects", label: "Проекты", icon: FolderKanban, roles: STAFF_ROLES },
   { href: "/finance", label: "Финансы", icon: Wallet, roles: ["founder"] },
   { href: "/files", label: "Файлы", icon: FileStack, roles: STAFF_ROLES },
+  { href: "/team", label: "Команда", icon: UserCog, roles: ["founder"] },
+  { href: "/profile", label: "Профиль", icon: UserCircle, roles: STAFF_ROLES },
   { href: "/tasks", label: "Просрочки", icon: ListChecks, roles: ["founder"] },
   { href: "/analytics", label: "Аналитика", icon: BarChart3, roles: ["founder"] },
   { href: "/my-tasks", label: "Мои таски", icon: ClipboardCheck, roles: ["student"] },
@@ -40,16 +45,28 @@ const NAV_ITEMS: NavItem[] = [
 export default function Sidebar({ role }: { role: string | null }) {
   const pathname = usePathname();
   const router = useRouter();
+  const chatUrl = process.env.NEXT_PUBLIC_TEAM_CHAT_URL;
 
   const items = NAV_ITEMS.filter((item) => !item.roles || (role && item.roles.includes(role)));
 
   return (
     <aside className="fixed inset-y-0 left-0 z-20 flex w-60 flex-col border-r border-border bg-bg-elevated/90 backdrop-blur-xl">
-      <div className="flex items-center gap-2 px-5 py-6">
+      <div className="flex items-center gap-2 px-5 py-5">
         <Image src="/logo.png" alt="AI Solution" width={32} height={32} className="rounded-lg" />
-        <span className="font-display text-sm font-semibold tracking-tight text-ink">
-          aisolutioncrm
-        </span>
+        <div className="leading-tight">
+          <Link
+            href="/dashboard"
+            className="font-display text-sm font-semibold tracking-tight text-ink hover:text-accent-strong"
+          >
+            aisolution
+          </Link>
+          <Link
+            href="/dashboard"
+            className="text-xs font-semibold uppercase tracking-wide text-accent-strong hover:text-accent"
+          >
+            CRM
+          </Link>
+        </div>
       </div>
 
       <nav className="flex-1 space-y-1 px-3">
@@ -76,7 +93,20 @@ export default function Sidebar({ role }: { role: string | null }) {
         })}
       </nav>
 
-      <div className="border-t border-border px-3 py-4">
+      <div className="space-y-2 border-t border-border px-3 py-4">
+        <a
+          href={chatUrl || "#"}
+          target={chatUrl ? "_blank" : undefined}
+          aria-disabled={!chatUrl}
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+            chatUrl
+              ? "bg-accent text-white hover:bg-accent-strong"
+              : "cursor-not-allowed bg-surface-2 text-ink-faint"
+          }`}
+        >
+          <MessageCircle size={17} />
+          Перейти в чат
+        </a>
         <button
           onClick={() => {
             clearTokens();

@@ -17,7 +17,7 @@ STATUSES = ("new", "contacted", "qualified", "proposal_sent", "won", "lost")
 
 LEAD_FIELDS = """
     id, source, name, phone, email, message, utm, status, owner_id, loss_reason,
-    created_at, first_response_at
+    created_at, first_response_at, archived_at
 """
 
 
@@ -42,6 +42,12 @@ class LeadPatch(BaseModel):
     status: Literal["new", "contacted", "qualified", "proposal_sent", "won", "lost"] | None = None
     loss_reason: str | None = None
     message: str | None = None
+    owner_id: int | None = None
+
+
+class LeadNoteIn(BaseModel):
+    text: str
+    mentioned_user_id: int | None = None
 
 
 def _row_to_dict(row) -> dict:
@@ -246,11 +252,14 @@ async def list_leads(
     status_filter: str | None = Query(None, alias="status"),
     source: str | None = None,
     owner_id: int | None = None,
+    archived: bool = False,
     user: CurrentUser = Depends(require_sales_role),
 ) -> list[dict]:
     pool = get_pool()
     conditions = ["deleted_at IS NULL"]
     params: list = []
+
+    conditions.append("archived_at IS NOT NULL" if archived else "archived_at IS NULL")
 
     if status_filter is not None:
         params.append(status_filter)
@@ -275,6 +284,124 @@ async def list_leads(
     )
     rows = await pool.fetch(query, *params)
     return [_row_to_dict(r) for r in rows]
+
+
+@router.get("/{lead_id}/notes")
+async def list_lead_notes(
+    lead_id: int, user: CurrentUser = Depends(require_sales_role)
+) -> list[dict]:
+    pool = get_pool()
+    lead = await pool.fetchrow(
+        "SELECT id, owner_id FROM leads WHERE id = $1 AND deleted_at IS NULL", lead_id
+    )
+    if lead is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    if user.role != "founder" and lead["owner_id"] != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is not visible")
+
+    rows = await pool.fetch(
+        """
+        SELECT e.id, e.actor_id, u.name AS actor_name, e.payload, e.created_at
+        FROM events e
+        LEFT JOIN users u ON u.id = e.actor_id
+        WHERE e.entity_type = 'lead' AND e.entity_id = $1 AND e.event_type = 'note_added'
+        ORDER BY e.created_at DESC
+        """,
+        lead_id,
+    )
+    return [dict(row) for row in rows]
+
+
+@router.post("/{lead_id}/notes", status_code=status.HTTP_201_CREATED)
+async def add_lead_note(
+    lead_id: int, body: LeadNoteIn, user: CurrentUser = Depends(require_sales_role)
+) -> dict:
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Note is empty")
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            lead = await conn.fetchrow(
+                "SELECT id, owner_id FROM leads WHERE id = $1 AND deleted_at IS NULL",
+                lead_id,
+            )
+            if lead is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+            if user.role != "founder" and lead["owner_id"] != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the lead owner or founder can add notes",
+                )
+            if body.mentioned_user_id is not None:
+                mentioned = await conn.fetchval(
+                    "SELECT id FROM users WHERE id = $1 AND is_active AND deleted_at IS NULL",
+                    body.mentioned_user_id,
+                )
+                if mentioned is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Mentioned user not found",
+                    )
+            row = await conn.fetchrow(
+                """
+                INSERT INTO events (entity_type, entity_id, actor_id, event_type, payload)
+                VALUES ('lead', $1, $2, 'note_added', $3)
+                RETURNING id, actor_id, payload, created_at
+                """,
+                lead_id,
+                user.id,
+                {"text": text, "mentioned_user_id": body.mentioned_user_id},
+            )
+    return dict(row)
+
+
+@router.post("/{lead_id}/archive")
+async def archive_lead(lead_id: int, user: CurrentUser = Depends(require_sales_role)) -> dict:
+    return await _set_lead_archive(lead_id, user, archived=True)
+
+
+@router.post("/{lead_id}/unarchive")
+async def unarchive_lead(lead_id: int, user: CurrentUser = Depends(require_sales_role)) -> dict:
+    return await _set_lead_archive(lead_id, user, archived=False)
+
+
+async def _set_lead_archive(lead_id: int, user: CurrentUser, archived: bool) -> dict:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            current = await conn.fetchrow(
+                "SELECT id, owner_id, archived_at FROM leads "
+                "WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
+                lead_id,
+            )
+            if current is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+            if user.role != "founder" and current["owner_id"] != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the lead owner or founder can archive this lead",
+                )
+            row = await conn.fetchrow(
+                f"""
+                UPDATE leads
+                SET archived_at = CASE WHEN $1 THEN now() ELSE NULL END
+                WHERE id = $2
+                RETURNING {LEAD_FIELDS}
+                """,
+                archived,
+                lead_id,
+            )
+            await record_event(
+                conn,
+                "lead",
+                lead_id,
+                user.id,
+                "archived" if archived else "unarchived",
+                {},
+            )
+    return dict(row)
 
 
 @router.post("/{lead_id}/claim")
@@ -348,6 +475,22 @@ async def patch_lead(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only the lead owner or founder can modify this lead",
                 )
+            if body.owner_id is not None and not is_founder:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only founder can reassign leads",
+                )
+            if body.owner_id is not None:
+                assignee = await conn.fetchval(
+                    "SELECT id FROM users WHERE id = $1 AND role = 'manager' "
+                    "AND is_active AND deleted_at IS NULL",
+                    body.owner_id,
+                )
+                if assignee is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Lead owner must be an active manager",
+                    )
 
             new_status = body.status if body.status is not None else current["status"]
             set_first_response = (
@@ -363,7 +506,8 @@ async def patch_lead(
                 SET status = $1,
                     loss_reason = COALESCE($2, loss_reason),
                     message = COALESCE($3, message),
-                    first_response_at = CASE WHEN $4 THEN now() ELSE first_response_at END
+                    first_response_at = CASE WHEN $4 THEN now() ELSE first_response_at END,
+                    owner_id = COALESCE($6, owner_id)
                 WHERE id = $5
                 RETURNING {LEAD_FIELDS}
                 """,
@@ -372,6 +516,7 @@ async def patch_lead(
                 body.message,
                 set_first_response,
                 lead_id,
+                body.owner_id,
             )
 
             if body.status is not None and body.status != current["status"]:
@@ -389,6 +534,15 @@ async def patch_lead(
                 )
             elif body.message is not None:
                 await record_event(conn, "lead", lead_id, user.id, "note_added", {})
+            if body.owner_id is not None and body.owner_id != current["owner_id"]:
+                await record_event(
+                    conn,
+                    "lead",
+                    lead_id,
+                    user.id,
+                    "assigned",
+                    {"from": current["owner_id"], "owner_id": body.owner_id},
+                )
 
     return _row_to_dict(row)
 

@@ -1,4 +1,6 @@
 import uuid
+from pathlib import Path
+from urllib.parse import quote
 
 import boto3
 
@@ -28,6 +30,16 @@ def upload_file(content: bytes, filename: str, content_type: str) -> str:
     persisted in the `files` table.
     """
     key = f"{uuid.uuid4()}-{filename}"
+    if (
+        settings.s3_endpoint_url is None
+        and settings.s3_access_key == "dev-access-key"
+        and settings.s3_secret_key == "dev-secret-key"
+    ):
+        upload_dir = Path(settings.local_upload_dir)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        (upload_dir / key).write_bytes(content)
+        return f"/uploads/{quote(key)}"
+
     client = _get_client()
     client.put_object(
         Bucket=settings.s3_bucket,

@@ -21,12 +21,15 @@ class Settings(BaseSettings):
     s3_access_key: str = "dev-access-key"
     s3_secret_key: str = "dev-secret-key"
     s3_public_url_base: str | None = None
+    local_upload_dir: str = "/tmp/aisolutioncrm-uploads"
 
     # Internal bot integration (see PROGRESS.md > Decisions, phase 5).
     internal_bot_secret: str = "dev-internal-bot-secret"
     bot_push_url: str | None = None
     telegram_bot_username: str = "aisolutioncrm_bot"
     telegram_login_token_ttl_minutes: int = 10
+    telegram_notify_bot_token: str | None = None
+    project_notify_chat_id: str | None = None
 
     # Meta (Instagram/Facebook) webhook verification handshake (phase 8).
     meta_webhook_verify_token: str = "dev-verify-token"
