@@ -978,6 +978,25 @@ h1, h2, h3, h4, .font-display {
   height: 34px;
 }
 
+.obsidian-mobile-tab {
+  position: relative;
+  overflow: hidden;
+}
+
+.obsidian-mobile-tab::before {
+  content: "";
+  position: absolute;
+  inset: -45%;
+  z-index: -1;
+  background: radial-gradient(circle, rgba(124, 58, 237, .28), transparent 58%);
+  animation: mobile-tab-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes mobile-tab-pulse {
+  0%, 100% { opacity: .45; transform: scale(.92); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
 .obsidian-top-pulse {
   position: relative;
   isolation: isolate;
@@ -1143,6 +1162,85 @@ h1, h2, h3, h4, .font-display {
   font-style: normal;
   color: rgba(255,255,255,.8);
   font-size: 11px;
+}
+
+@media (max-width: 1023px) {
+  .crm-live-track {
+    left: -22vw;
+    top: 4%;
+    gap: 24px;
+    opacity: .11;
+    animation-duration: 58s;
+  }
+
+  .crm-live-track--slow {
+    top: 82%;
+    opacity: .09;
+  }
+
+  .crm-live-track span {
+    font-size: clamp(24px, 10vw, 54px);
+  }
+
+  .obsidian-top-pulse::before {
+    animation-duration: 8s;
+  }
+
+  .obsidian-brain-shell {
+    border-radius: 22px;
+    padding: 18px;
+  }
+
+  .obsidian-brain-stage {
+    min-height: 760px;
+  }
+
+  .obsidian-center-core {
+    top: 92px;
+    width: 142px;
+    height: 142px;
+  }
+
+  .obsidian-lines {
+    display: none;
+  }
+
+  .obsidian-user-node {
+    left: 50% !important;
+    top: auto !important;
+    width: min(100%, 320px);
+    min-height: 92px;
+    transform: translateX(-50%);
+  }
+
+  .obsidian-user-node:hover,
+  .obsidian-user-node.is-active {
+    transform: translateX(-50%) scale(1.02);
+  }
+
+  .obsidian-user-node.is-muted {
+    opacity: .58;
+  }
+
+  .obsidian-user-node:nth-of-type(1) { top: 210px !important; }
+  .obsidian-user-node:nth-of-type(2) { top: 322px !important; }
+  .obsidian-user-node:nth-of-type(3) { top: 434px !important; }
+  .obsidian-user-node:nth-of-type(4) { top: 546px !important; }
+  .obsidian-user-node:nth-of-type(n+5) { display: none; }
+}
+
+@media (min-width: 721px) and (max-width: 1023px) {
+  .intro-core {
+    width: min(720px, calc(100vw - 72px));
+  }
+
+  .obsidian-brain-stage {
+    min-height: 650px;
+  }
+
+  .obsidian-user-node {
+    width: 240px;
+  }
 }
 
 ::selection {

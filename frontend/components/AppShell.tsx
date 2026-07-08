@@ -113,9 +113,9 @@ export default function AppShell({
         </div>
       </div>
       <Sidebar role={role} />
-      <main className="relative z-10 ml-60 min-h-screen px-8 py-8 lg:px-12">
+      <main className="relative z-10 min-h-screen px-4 py-5 pb-28 sm:px-6 lg:ml-60 lg:px-12 lg:py-8 lg:pb-8">
         <div className="mx-auto max-w-6xl">
-          <header className="mb-8 rise-in">
+          <header className="mb-6 rise-in lg:mb-8">
             {role === "founder" && (
               <GoalBar
                 goal={goal}
@@ -125,8 +125,8 @@ export default function AppShell({
                 onSave={saveGoal}
               />
             )}
-            <div className="mb-5 flex justify-end">
-              <Link href="/obsidian" className="obsidian-top-pulse inline-flex items-center gap-3 rounded-2xl border border-[#7c3aed]/30 bg-[#1b1231] px-4 py-3 text-white shadow-glow">
+            <div className="mb-4 flex justify-end lg:mb-5">
+              <Link href="/obsidian" className="obsidian-top-pulse inline-flex items-center gap-3 rounded-2xl border border-[#7c3aed]/30 bg-[#1b1231] px-3 py-2.5 text-white shadow-glow sm:px-4 sm:py-3">
                 <span className="obsidian-gem obsidian-gem--small" />
                 <span>
                   <span className="block font-display text-sm font-semibold">Obsidian?</span>
@@ -140,8 +140,8 @@ export default function AppShell({
               </span>
             )}
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <h1 className="font-display text-2xl font-bold text-ink">{title}</h1>
-              <p className="max-w-xl rounded-full border border-border bg-surface/80 px-4 py-2 text-sm text-ink-dim shadow-sm backdrop-blur">
+              <h1 className="font-display text-xl font-bold text-ink sm:text-2xl">{title}</h1>
+              <p className="max-w-xl rounded-2xl border border-border bg-surface/80 px-3 py-2 text-sm leading-5 text-ink-dim shadow-sm backdrop-blur sm:rounded-full sm:px-4">
                 {MOOD_LINES[moodIndex]}
               </p>
             </div>

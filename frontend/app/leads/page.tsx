@@ -800,7 +800,7 @@ export default function LeadsPage() {
       </div>
 
       {selectedLead && (
-        <section className="sticky bottom-4 z-30 mt-6 rounded-2xl border border-border bg-white/95 p-5 shadow-glow backdrop-blur">
+        <section className="sticky bottom-24 z-30 mt-6 rounded-2xl border border-border bg-white/95 p-4 shadow-glow backdrop-blur sm:p-5 lg:bottom-4">
           <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase text-ink-faint">Этапность лида</p>
