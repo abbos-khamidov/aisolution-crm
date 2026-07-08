@@ -1,11 +1,11 @@
 import datetime as dt
-import json
 from decimal import Decimal
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
 
+from app.core.config import settings
 from app.core.deps import CurrentUser, require_sales_role
 from app.db.events import record_event
 from app.db.pool import get_pool
@@ -57,7 +57,7 @@ async def _create_lead(
             row = await conn.fetchrow(
                 f"""
                 INSERT INTO leads (source, name, phone, email, message, utm)
-                VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 RETURNING {LEAD_FIELDS}
                 """,
                 source,
@@ -65,7 +65,7 @@ async def _create_lead(
                 body.phone,
                 body.email,
                 body.message,
-                json.dumps(body.utm),
+                body.utm,
             )
             await record_event(conn, "lead", row["id"], actor_id, "created", {"source": source})
     return _row_to_dict(row)
@@ -74,6 +74,129 @@ async def _create_lead(
 @router.post("/webhook/website", status_code=status.HTTP_201_CREATED)
 async def website_webhook(body: WebsiteLeadIn) -> dict:
     return await _create_lead("website", body, actor_id=None)
+
+
+# --- Instagram / Facebook (Meta) and Telegram lead-channel webhooks (phase 8) ---
+#
+# Each channel has its own wire format; all of them get normalized down to the
+# same WebsiteLeadIn shape and go through the identical _create_lead ->
+# claim/owner/status flow as a website lead (CRM_SPEC.md phase 8: "тот же
+# flow claim/owner, что и для website — не создавай отдельную логику на
+# канал, только разный парсинг входящего payload"). Channel-specific ids are
+# kept in the `utm` jsonb, never as new columns.
+
+
+def _meta_verify_challenge(request: Request) -> Response:
+    """Meta (Instagram/Facebook) requires a GET handshake before it will ever
+    POST webhook events to a URL: it sends hub.mode/hub.verify_token/
+    hub.challenge and expects hub.challenge echoed back verbatim if the token
+    matches.
+    """
+    params = request.query_params
+    if (
+        params.get("hub.mode") == "subscribe"
+        and params.get("hub.verify_token") == settings.meta_webhook_verify_token
+    ):
+        return Response(content=params.get("hub.challenge", ""), media_type="text/plain")
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Verification failed")
+
+
+@router.get("/webhook/instagram")
+async def instagram_webhook_verify(request: Request) -> Response:
+    return _meta_verify_challenge(request)
+
+
+@router.post("/webhook/instagram", status_code=status.HTTP_201_CREATED)
+async def instagram_webhook(body: dict[str, Any]) -> list[dict]:
+    """Instagram Direct Message webhook (Meta Graph API messaging format):
+    {"entry": [{"messaging": [{"sender": {"id": "..."}, "message": {"text": "..."}}]}]}
+    DMs carry no name/email — the sender's platform-scoped id becomes the
+    lead name, full raw payload preserved in utm for the sales team to trace.
+    """
+    created = []
+    for entry in body.get("entry", []):
+        for event in entry.get("messaging", []):
+            sender_id = event.get("sender", {}).get("id")
+            text = event.get("message", {}).get("text")
+            if sender_id is None:
+                continue
+            lead = WebsiteLeadIn(
+                name=f"Instagram user {sender_id}",
+                message=text,
+                utm={"platform": "instagram", "sender_id": sender_id},
+            )
+            created.append(await _create_lead("instagram", lead, actor_id=None))
+    if not created:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No messaging events")
+    return created
+
+
+@router.get("/webhook/facebook")
+async def facebook_webhook_verify(request: Request) -> Response:
+    return _meta_verify_challenge(request)
+
+
+@router.post("/webhook/facebook", status_code=status.HTTP_201_CREATED)
+async def facebook_webhook(body: dict[str, Any]) -> list[dict]:
+    """Meta Lead Ads ("leadgen") webhook format:
+    {"entry": [{"changes": [{"field": "leadgen", "value": {
+        "leadgen_id": "...", "form_id": "...",
+        "field_data": [{"name": "full_name", "values": ["..."]}, ...]
+    }}]}]}
+    """
+    created = []
+    for entry in body.get("entry", []):
+        for change in entry.get("changes", []):
+            if change.get("field") != "leadgen":
+                continue
+            value = change.get("value", {})
+            fields = {
+                f["name"]: (f.get("values") or [None])[0] for f in value.get("field_data", [])
+            }
+            lead = WebsiteLeadIn(
+                name=fields.get("full_name") or fields.get("first_name") or "Facebook lead",
+                phone=fields.get("phone_number"),
+                email=fields.get("email"),
+                utm={
+                    "platform": "facebook",
+                    "leadgen_id": value.get("leadgen_id"),
+                    "form_id": value.get("form_id"),
+                },
+            )
+            created.append(await _create_lead("facebook", lead, actor_id=None))
+    if not created:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No leadgen events")
+    return created
+
+
+@router.post("/webhook/telegram", status_code=status.HTTP_201_CREATED)
+async def telegram_webhook(body: dict[str, Any]) -> dict:
+    """Telegram Bot API update format for a public-facing sales inquiry bot
+    (a *different* bot than the internal aisolutioncrm task bot in /bot —
+    this one is whatever bot AI Solution links from its Telegram channel/ads):
+    {"message": {"from": {"id": 123, "first_name": "...", "username": "..."}, "text": "..."}}
+    """
+    message = body.get("message", {})
+    from_user = message.get("from", {})
+    telegram_user_id = from_user.get("id")
+    if telegram_user_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No message.from")
+
+    name = (
+        from_user.get("first_name")
+        or from_user.get("username")
+        or f"Telegram user {telegram_user_id}"
+    )
+    lead = WebsiteLeadIn(
+        name=name,
+        message=message.get("text"),
+        utm={
+            "platform": "telegram",
+            "telegram_user_id": telegram_user_id,
+            "username": from_user.get("username"),
+        },
+    )
+    return await _create_lead("telegram", lead, actor_id=None)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -269,13 +392,13 @@ async def convert_lead(
             client = await conn.fetchrow(
                 """
                 INSERT INTO clients (lead_id, name, company_name, contact_info)
-                VALUES ($1, $2, $3, $4::jsonb)
+                VALUES ($1, $2, $3, $4)
                 RETURNING id, lead_id, name, company_name, contact_info, created_at
                 """,
                 lead_id,
                 lead["name"],
                 body.company_name,
-                json.dumps(body.contact_info),
+                body.contact_info,
             )
 
             project_owner_id = lead["owner_id"] or user.id

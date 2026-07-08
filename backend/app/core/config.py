@@ -23,5 +23,8 @@ class Settings(BaseSettings):
     telegram_bot_username: str = "aisolutioncrm_bot"
     telegram_login_token_ttl_minutes: int = 10
 
+    # Meta (Instagram/Facebook) webhook verification handshake (phase 8).
+    meta_webhook_verify_token: str = "dev-verify-token"
+
 
 settings = Settings()

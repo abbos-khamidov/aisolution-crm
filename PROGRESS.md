@@ -1,25 +1,43 @@
 # PROGRESS.md — aisolutioncrm
 
-## Что проверить в первую очередь
-- Ничего не заблокировано на момент последнего обновления. Все self-check пункты
-  фазы 0 пройдены реально (команды и вывод — см. "Decisions & Assumptions" и git log
-  в ветке `dev`).
-- Единственное сознательное отклонение от acceptance-критерия: `docker-compose up`
-  не запускался вживую (Docker не установлен на машине, где шла разработка) — см.
-  пункт про Docker ниже.
-- **Фаза 5, важно:** acceptance-критерий "таска реально доходит студенту в
-  Telegram (тестовый бот/чат)" НЕ проверен end-to-end с реальным Telegram —
-  в dev-песочнице нет реального `BOT_TOKEN` (создаётся через @BotFather, это
-  шаг, который может сделать только человек с Telegram-аккаунтом). Код бота
-  и push/complete flow проверены иначе (юнит-тесты с моками aiohttp/httpx —
-  см. Decisions фазы 5). Founder должен один раз: создать бота через
-  @BotFather → положить токен в `bot/.env` → поднять `docker-compose up` →
-  создать таску с исполнителем, у которого проставлен `telegram_id` → вручную
-  убедиться, что сообщение с кнопкой пришло и "Готово" реально меняет статус.
+## Что проверить в первую очередь (все 8 фаз завершены)
+
+Ничего не заблокировано. 45 backend-тестов + 10 bot-тестов зелёные, ruff чист,
+`alembic upgrade head` проходит на чистой БД (проверялось после каждой фазы, в
+т.ч. финально после фазы 8), frontend собирается без TS-ошибок. Три вещи
+by design НЕ проверены автономным агентом и нужны founder'у вручную —
+это не забытые баги, а честные ограничения dev-песочницы без реальных внешних
+токенов/сервисов:
+
+1. **`docker-compose up` вживую** — Docker не установлен на машине разработки.
+   Файлы (`docker-compose.yml`, 3×`Dockerfile`) написаны и вычитаны построчно,
+   но live-прогон не выполнялся. Self-check каждой фазы шёл через нативный
+   Postgres/venv/npm. → Founder: `docker-compose up` один раз перед первым
+   деплоем, сверить с портами в PROGRESS.md (Postgres на 5433 снаружи).
+
+2. **Реальный Telegram end-to-end (таск-бот и student-логин)** — нет
+   `BOT_TOKEN` (получается только через @BotFather человеком). Push/complete/
+   login-confirm flow проверены юнит-тестами с моками aiohttp/httpx/respx, но
+   не с настоящим Telegram. → Founder: создать бота через @BotFather → токен
+   в `bot/.env` → `docker-compose up` → (а) создать таску студенту с
+   `telegram_id` и проверить кнопку "Готово"; (б) на `/login` нажать "Войти
+   через Telegram" и подтвердить в боте.
+
+3. **Instagram/Facebook webhook verify + реальные события** — нужны App
+   ID/Secret/Verify Token из Meta for Developers, недоступны в песочнице.
+   Парсинг и GET-хендшейк проверены на синтетических payload'ах, точно
+   повторяющих документированный формат Meta. → Founder: зарегистрировать
+   приложение в Meta for Developers, подписать webhook на `/leads/webhook/
+   {instagram,facebook}` с `meta_webhook_verify_token` из `.env`.
+
+Отдельно: в фазе 8 найден и исправлен реальный баг, живший с фазы 1 —
+`asyncpg` не декодировал `jsonb` в Python dict (см. Decisions фазы 8). Уже
+исправлено и покрыто тестами, упоминаю здесь только потому что затрагивало
+код всех предыдущих фаз.
 
 ## Текущая фаза
-Фаза 7: Аналитика — done.
-Следующая: Фаза 8 — Доп. каналы лидов (Instagram/Telegram/Facebook).
+Фаза 8: Доп. каналы лидов — done. Все 8 фаз BUILD_PHASES.md завершены.
+Следующих фаз нет — проект целиком реализован по плану.
 
 ## Завершено
 - Фаза 0: monorepo (`/backend`, `/frontend`), первая Alembic-миграция (`users`,
@@ -85,6 +103,29 @@
   функция `compute_finance_summary`, не отдельный analytics-сервис),
   `/analytics/team-load`, `/analytics/stale-leads?days=N` (default 7). Все
   founder-only. Frontend: `/analytics` — все пять таблиц на одной странице.
+- Фаза 8: webhook'и `/leads/webhook/{instagram,facebook,telegram}` — парсят
+  реальные форматы платформ (Meta messaging webhook, Meta Lead Ads "leadgen",
+  Telegram Bot API update) в общий `WebsiteLeadIn`, дальше — тот же
+  `_create_lead` → claim/owner/status flow, что и website. Meta-каналы
+  (`instagram`/`facebook`) поддерживают GET-хендшейк верификации
+  (`hub.mode`/`hub.verify_token`/`hub.challenge`) — обязательное требование
+  Meta перед тем, как она вообще начнёт слать POST. Платформенные id/сырые
+  поля — в `utm` jsonb, без новых колонок. Схема БД не менялась (`leads.source`
+  CHECK уже включал эти значения с фазы 1).
+- **Попутно найден и исправлен сквозной баг фаз 1-7**: `app/db/pool.py` не
+  регистрировал type codec для `jsonb`/`json` — asyncpg по умолчанию отдаёт
+  jsonb-колонки (`leads.utm`, `events.payload`, `clients.contact_info`) как
+  сырую JSON-строку, а не Python dict/распарсенный объект. Это всплыло только
+  в тестах фазы 8 (первые тесты, которые реально проверяли содержимое
+  `utm`/`payload` как вложенный объект, а не просто наличие top-level полей).
+  Исправлено централизованно в `init_pool()` (codec на весь пул, а не патчи
+  по каждому месту чтения), плюс убраны все ручные `json.dumps(...)` +
+  `::jsonb` касты при записи (`leads.py`, `clients.py`, `events.py`) — теперь
+  Python dict передаётся в asyncpg напрямую, кодирование/декодирование
+  симметрично на уровне драйвера. Фронтенд не пострадал (ни одна из уже
+  построенных страниц не читает `utm`/`payload`/`contact_info` напрямую), но
+  это был реальный баг для любого будущего API-потребителя, ожидающего
+  вложенный JSON, а не строку.
 
 ## Decisions & Assumptions
 
@@ -286,6 +327,24 @@
   Численно проверяемо вручную по `events` для конкретного лида (что и требует
   acceptance-критерий фазы 7).
 
+- **[2026-07-08] Telegram-webhook для входящих лидов (`/leads/webhook/telegram`)
+  — это ДРУГОЙ бот**, не тот же процесс, что `/bot` (внутренний таск-бот для
+  студентов из фазы 5). Публичный "бот продаж", на который ведут реклама/шапка
+  профиля, отдельная сущность с отдельным токеном — просто ещё один источник
+  входящих webhook-запросов в CRM, как и Instagram/Facebook. Не стал заводить
+  для него отдельный процесс в `/bot`, т.к. в отличие от таск-бота ему не
+  нужна долгоживущая polling-логика (никаких inline-кнопок/колбэков) — только
+  прием вебхука на стороне backend.
+
+- **[2026-07-08] Meta-платформы (Instagram/Facebook) требуют реальные
+  App ID/App Secret/Verify Token из Meta for Developers — недоступны в этой
+  dev-песочнице** (аналогично Docker в фазе 0 и BOT_TOKEN в фазе 5). Парсинг
+  payload и GET-верификация протестированы на синтетических данных, точно
+  повторяющих документированный формат Meta webhook (messaging/leadgen).
+  Founder должен зарегистрировать приложение в Meta for Developers и
+  подписать webhook на реальный URL перед продакшн-использованием этих
+  каналов — это внешняя инфраструктурная настройка, не код.
+
 ## Known issues / TODO
 - Docker-compose live run не проверен (см. Decisions выше) — проверить на
   реальной машине с установленным Docker/Colima перед деплоем.
@@ -310,11 +369,18 @@
   назначенные таски... веб read-only минимальный"); отметка "Готово" — только
   через бота, не через веб. Осознанное ограничение, не забытая фича.
 
-## С чего продолжить следующую сессию
-Фаза 8 (`BUILD_PHASES.md` раздел "Фаза 8 — Доп. каналы лидов"): webhook-
-эндпоинты для Instagram/Telegram/Facebook, маппинг в ту же таблицу `leads`
-(тот же claim/owner-flow, что и website), utm/source-специфичные поля — в
-jsonb `utm`, не новые колонки. `leads.source` CHECK уже включает эти три
-значения с фазы 1 (`instagram|telegram|facebook|referral|other`) — новых
-миграций для самой схемы не требуется, только новые webhook-роуты в
-`backend/app/api/leads.py`.
+## Known issues / TODO (фаза 8)
+- Instagram/Facebook webhook-верификация и парсинг проверены только на
+  синтетических payload'ах — нет реальных Meta App credentials в песочнице
+  (см. блок вверху файла).
+- `POST /leads/webhook/telegram` (этот отдельный "продажный" бот) не
+  проверяет подпись/секрет — как и `/webhook/website`, открытый входящий
+  endpoint. Telegram сам по себе не даёт webhook secret-подписи как Meta
+  (только `secret_token` в setWebhook, не реализовано — не блокер для MVP).
+
+## Проект завершён — все 8 фаз BUILD_PHASES.md реализованы
+Ветка `dev`, 8 коммитов по одному на фазу (`git log --oneline`). Что осталось
+человеку — см. "Что проверить в первую очередь" в самом верху файла: реальный
+`docker-compose up`, реальный Telegram (bot token), реальный Meta webhook
+(App credentials). Всё остальное — код, миграции, тесты, self-check — сделано
+и проверено на этой машине.

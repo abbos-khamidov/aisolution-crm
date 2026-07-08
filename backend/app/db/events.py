@@ -1,4 +1,3 @@
-import json
 from typing import Any
 
 import asyncpg
@@ -15,11 +14,11 @@ async def record_event(
     await conn.execute(
         """
         INSERT INTO events (entity_type, entity_id, actor_id, event_type, payload)
-        VALUES ($1, $2, $3, $4, $5::jsonb)
+        VALUES ($1, $2, $3, $4, $5)
         """,
         entity_type,
         entity_id,
         actor_id,
         event_type,
-        json.dumps(payload or {}),
+        payload or {},
     )

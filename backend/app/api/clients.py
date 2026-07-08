@@ -1,4 +1,3 @@
-import json
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -24,12 +23,12 @@ async def create_client(body: ClientIn, user: CurrentUser = Depends(require_staf
     row = await pool.fetchrow(
         f"""
         INSERT INTO clients (name, company_name, contact_info)
-        VALUES ($1, $2, $3::jsonb)
+        VALUES ($1, $2, $3)
         RETURNING {CLIENT_FIELDS}
         """,
         body.name,
         body.company_name,
-        json.dumps(body.contact_info),
+        body.contact_info,
     )
     return dict(row)
 
