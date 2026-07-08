@@ -9,8 +9,8 @@
   пункт про Docker ниже.
 
 ## Текущая фаза
-Фаза 3: Финансы — done.
-Следующая: Фаза 4 — Файлы и согласование.
+Фаза 4: Файлы и согласование — done.
+Следующая: Фаза 5 — Таски и интеграция с Telegram-ботом.
 
 ## Завершено
 - Фаза 0: monorepo (`/backend`, `/frontend`), первая Alembic-миграция (`users`,
@@ -37,6 +37,14 @@
   `/projects/{id}/finance-entries`, `PATCH /finance-entries/{id}`,
   `GET /finance/summary` (invoiced/paid/overdue по клиенту и по месяцу).
   Frontend: `/finance` с двумя таблицами.
+- Фаза 4: таблица `files` (S3-совместимое хранилище через `boto3`, бинарники не
+  хранятся в Postgres — только URL). `POST /files` (multipart, ровно один из
+  project_id/lead_id, DB CHECK это же проверяет), `GET /files` (фильтры),
+  `POST /files/{id}/approve|reject` — только founder (403 иначе). FK
+  `milestones.deliverable_file_id -> files(id)` добавлен, как и было
+  запланировано в конце фазы 2. Frontend: `/files` — очередь pending_review,
+  approve/reject видны только founder'у. Тесты используют `moto` для мока S3
+  (реальный Hetzner Object Storage недоступен в dev-песочнице — см. Decisions).
 
 ## Decisions & Assumptions
 
@@ -158,6 +166,20 @@
   PATCH другого поля на уже оплаченной записи не требует передавать `paid_at`
   каждый раз).
 
+- **[2026-07-08] S3 через `boto3` с настраиваемым `endpoint_url`**, а не
+  Hetzner-специфичный SDK. Работает и с реальным Hetzner Object Storage
+  (S3-совместимый API), и с любым другим S3-совместимым бэкендом, и с `moto` в
+  тестах — не привязываемся к вендору. Бакет приложение НЕ создаёт само при
+  старте (`create_bucket` только в тестовой фикстуре) — в проде бакет должен
+  быть создан заранее вручную/инфраструктурно, чтобы приложение не имело прав
+  на создание/удаление бакетов в hot path.
+
+- **[2026-07-08] `files` требует ровно один из `project_id`/`lead_id`**
+  (DB CHECK `(project_id IS NOT NULL)::int + (lead_id IS NOT NULL)::int = 1`,
+  зеркалится в API 400). CRM_SPEC.md раздел 3 не запрещает оба NULL или оба
+  заполненными явно, но и то и другое делает файл "ничьим" или неоднозначным —
+  ровно один — единственная осмысленная трактовка.
+
 ## Known issues / TODO
 - Docker-compose live run не проверен (см. Decisions выше) — проверить на
   реальной машине с установленным Docker/Colima перед деплоем.
@@ -173,9 +195,8 @@
   нуля работает без ошибок.
 
 ## С чего продолжить следующую сессию
-Фаза 4 (`BUILD_PHASES.md` раздел "Фаза 4 — Файлы и согласование"): загрузка
-файла в S3-совместимое хранилище (не бинарник в Postgres), привязка к
-project/lead, founder approve/reject с комментарием, события. Не забыть
-добавить FK `milestones.deliverable_file_id -> files(id)` теперь, когда
-таблица `files` появляется (см. Decisions фазы 2). Открыть
-`backend/app/api/`, добавить `files.py`, миграцию `backend/alembic/versions/`.
+Фаза 5 (`BUILD_PHASES.md` раздел "Фаза 5 — Таски и интеграция с Telegram-ботом"):
+`tasks` CRUD, внутренний REST endpoint для бота (получить таски по telegram_id,
+отметить done), отдельный aiogram3-процесс с inline-кнопкой "Готово", дашборд
+просрочек. Открыть `backend/app/api/`, добавить `tasks.py`, миграцию
+`backend/alembic/versions/`, новый каталог `bot/` для aiogram-процесса.

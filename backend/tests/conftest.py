@@ -1,7 +1,9 @@
 import asyncpg
 import httpx
 import pytest_asyncio
+from moto import mock_aws
 
+import app.core.storage as storage_module
 from app.core.config import settings
 from app.core.security import create_access_token
 from app.main import app, lifespan
@@ -12,7 +14,7 @@ async def db():
     conn = await asyncpg.connect(settings.database_url)
     await conn.execute(
         "TRUNCATE leads, events, users, clients, projects, project_members, milestones, "
-        "finance_entries RESTART IDENTITY CASCADE;"
+        "finance_entries, files RESTART IDENTITY CASCADE;"
     )
     try:
         yield conn
@@ -41,3 +43,14 @@ async def make_user(db, name: str, email: str, role: str) -> tuple[int, str]:
 
 def auth_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture
+async def s3():
+    """Mocks S3-compatible storage with moto so file-upload tests don't need a
+    real Hetzner Object Storage bucket (see PROGRESS.md > Decisions)."""
+    with mock_aws():
+        storage_module._client = None
+        storage_module._get_client().create_bucket(Bucket=settings.s3_bucket)
+        yield
+        storage_module._client = None

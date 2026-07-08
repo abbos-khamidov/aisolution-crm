@@ -66,6 +66,9 @@ export default function ProjectsPage() {
           <Link href="/finance" className="text-sm text-gray-500 underline">
             Финансы
           </Link>
+          <Link href="/files" className="text-sm text-gray-500 underline">
+            Файлы
+          </Link>
           <button onClick={() => setShowAll((v) => !v)} className="text-sm underline">
             {showAll ? "Только активные" : "Показать все"}
           </button>
