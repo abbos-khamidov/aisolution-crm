@@ -9,8 +9,8 @@
   пункт про Docker ниже.
 
 ## Текущая фаза
-Фаза 2: Клиенты и проекты — done.
-Следующая: Фаза 3 — Финансы.
+Фаза 3: Финансы — done.
+Следующая: Фаза 4 — Файлы и согласование.
 
 ## Завершено
 - Фаза 0: monorepo (`/backend`, `/frontend`), первая Alembic-миграция (`users`,
@@ -32,6 +32,11 @@
   updated/member_added/member_removed. Frontend: `/projects` (дашборд с
   цветовой индикацией по дедлайну, фильтр активные/все), кнопка "Создать
   проект" на won-лидах в `/leads`.
+- Фаза 3: таблица `finance_entries` (type invoice/payment/expense, DB CHECK
+  зеркалит API-правило "paid требует paid_at"). CRUD
+  `/projects/{id}/finance-entries`, `PATCH /finance-entries/{id}`,
+  `GET /finance/summary` (invoiced/paid/overdue по клиенту и по месяцу).
+  Frontend: `/finance` с двумя таблицами.
 
 ## Decisions & Assumptions
 
@@ -140,6 +145,19 @@
   RBAC (manager видит только назначенные проекты, developer — только свои
   таски) — фаза 6, как и оговорено в CRM_SPEC.md разделе 6.
 
+- **[2026-07-08] "Overdue" в `/finance/summary` вычисляется динамически**
+  (`type='invoice' AND status<>'paid' AND due_date < CURRENT_DATE`), а не
+  читается из сохранённого `status='overdue'`. Никакой cron/job не переводит
+  записи в `overdue` автоматически — статус `overdue` в enum остаётся для
+  ручной простановки, но дашборд не полагается на то, что кто-то не забыл это
+  сделать. Более надёжный источник правды для аналитики.
+
+- **[2026-07-08] `paid_at` — предикат "иначе paid_at уже был установлен
+  раньше".** `PATCH .../finance-entries/{id}` разрешает `status=paid` если
+  `paid_at` передан в этом же запросе ИЛИ уже был проставлен раньше (повторный
+  PATCH другого поля на уже оплаченной записи не требует передавать `paid_at`
+  каждый раз).
+
 ## Known issues / TODO
 - Docker-compose live run не проверен (см. Decisions выше) — проверить на
   реальной машине с установленным Docker/Colima перед деплоем.
@@ -155,7 +173,9 @@
   нуля работает без ошибок.
 
 ## С чего продолжить следующую сессию
-Фаза 3 (`BUILD_PHASES.md` раздел "Фаза 3 — Финансы"): `finance_entries` CRUD
-(invoice/payment/expense), привязка к project, дашборд invoiced/paid/overdue,
-события. Открыть `backend/app/api/`, добавить `finance.py`, миграцию
-`backend/alembic/versions/`.
+Фаза 4 (`BUILD_PHASES.md` раздел "Фаза 4 — Файлы и согласование"): загрузка
+файла в S3-совместимое хранилище (не бинарник в Postgres), привязка к
+project/lead, founder approve/reject с комментарием, события. Не забыть
+добавить FK `milestones.deliverable_file_id -> files(id)` теперь, когда
+таблица `files` появляется (см. Decisions фазы 2). Открыть
+`backend/app/api/`, добавить `files.py`, миграцию `backend/alembic/versions/`.
