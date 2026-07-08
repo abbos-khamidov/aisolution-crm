@@ -1,0 +1,23 @@
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/.ruff_cache/
+*.pyc
+
+# Env
+backend/.env
+frontend/.env*
+!*.env.example
+
+# Node
+frontend/node_modules/
+frontend/.next/
+frontend/npm-debug.log*
+
+# Claude Code local
+.claude/settings.local.json
+
+# OS
+.DS_Store

@@ -1,0 +1,13 @@
+[project]
+name = "aisolutioncrm-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# B008: FastAPI's Depends(...) in argument defaults is the documented, idiomatic pattern.
+ignore = ["B008"]
