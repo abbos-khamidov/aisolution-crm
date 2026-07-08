@@ -8,6 +8,8 @@ from app.api.files import router as files_router
 from app.api.finance import router as finance_router
 from app.api.leads import router as leads_router
 from app.api.projects import router as projects_router
+from app.api.tasks import internal_router as bot_internal_router
+from app.api.tasks import router as tasks_router
 from app.db.pool import close_pool, init_pool
 
 
@@ -25,6 +27,8 @@ app.include_router(clients_router)
 app.include_router(projects_router)
 app.include_router(finance_router)
 app.include_router(files_router)
+app.include_router(tasks_router)
+app.include_router(bot_internal_router)
 
 
 @app.get("/health")

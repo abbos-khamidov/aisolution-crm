@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.core.config import settings
 from app.core.security import decode_token
 from app.db.pool import get_pool
 
@@ -45,3 +46,14 @@ async def require_founder(user: CurrentUser = Depends(get_current_user)) -> Curr
     if user.role != "founder":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Founder only")
     return user
+
+
+async def verify_internal_secret(x_internal_secret: str = Header(...)) -> None:
+    """Auth for bot<->CRM internal endpoints. The bot is not a `users` row (it
+    has no password) and never calls the JWT-protected endpoints, per
+    CRM_SPEC.md's "бот только через внутренний REST API" constraint.
+    """
+    if x_internal_secret != settings.internal_bot_secret:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid internal secret"
+        )

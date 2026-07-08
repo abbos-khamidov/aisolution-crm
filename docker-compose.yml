@@ -20,6 +20,8 @@ services:
     environment:
       DATABASE_URL: postgresql://aisolutioncrm:aisolutioncrm_dev_pw@postgres:5432/aisolutioncrm_dev
       JWT_SECRET: dev-secret-change-me
+      INTERNAL_BOT_SECRET: dev-internal-bot-secret
+      BOT_PUSH_URL: http://bot:8080
     ports:
       - "8000:8000"
     depends_on:
@@ -29,6 +31,21 @@ services:
       sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     volumes:
       - ./backend:/app
+
+  bot:
+    build: ./bot
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN:-000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA}
+      INTERNAL_SECRET: dev-internal-bot-secret
+      CRM_API_URL: http://backend:8000
+      LISTEN_HOST: 0.0.0.0
+      LISTEN_PORT: 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend
+    volumes:
+      - ./bot:/app
 
   frontend:
     build: ./frontend

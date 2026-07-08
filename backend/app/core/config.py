@@ -17,5 +17,9 @@ class Settings(BaseSettings):
     s3_secret_key: str = "dev-secret-key"
     s3_public_url_base: str | None = None
 
+    # Internal bot integration (see PROGRESS.md > Decisions, phase 5).
+    internal_bot_secret: str = "dev-internal-bot-secret"
+    bot_push_url: str | None = None
+
 
 settings = Settings()

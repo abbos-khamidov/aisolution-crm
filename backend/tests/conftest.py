@@ -14,7 +14,7 @@ async def db():
     conn = await asyncpg.connect(settings.database_url)
     await conn.execute(
         "TRUNCATE leads, events, users, clients, projects, project_members, milestones, "
-        "finance_entries, files RESTART IDENTITY CASCADE;"
+        "finance_entries, files, tasks RESTART IDENTITY CASCADE;"
     )
     try:
         yield conn
@@ -30,12 +30,15 @@ async def client(db):
             yield ac
 
 
-async def make_user(db, name: str, email: str, role: str) -> tuple[int, str]:
+async def make_user(
+    db, name: str, email: str, role: str, telegram_id: int | None = None
+) -> tuple[int, str]:
     user_id = await db.fetchval(
-        "INSERT INTO users (name, email, role) VALUES ($1, $2, $3) RETURNING id",
+        "INSERT INTO users (name, email, role, telegram_id) VALUES ($1, $2, $3, $4) RETURNING id",
         name,
         email,
         role,
+        telegram_id,
     )
     token = create_access_token(user_id, role)
     return user_id, token

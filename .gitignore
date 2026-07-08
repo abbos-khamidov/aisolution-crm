@@ -4,10 +4,16 @@ backend/__pycache__/
 backend/**/__pycache__/
 backend/.pytest_cache/
 backend/.ruff_cache/
+bot/.venv/
+bot/__pycache__/
+bot/**/__pycache__/
+bot/.pytest_cache/
+bot/.ruff_cache/
 *.pyc
 
 # Env
 backend/.env
+bot/.env
 frontend/.env*
 !*.env.example
 
