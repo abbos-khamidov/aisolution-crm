@@ -19,8 +19,43 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "aisolutioncrm",
-  description: "Умные решения, реальный рост — CRM для AI Solution",
+  metadataBase: new URL("https://crm.aisolution.uz"),
+  title: {
+    default: "AI Solution CRM | Внутренняя CRM aisolution.uz",
+    template: "%s | AI Solution CRM",
+  },
+  description:
+    "AI Solution CRM — закрытая рабочая система для лидов, проектов, команды и задач AI Solution. Доступ только по приглашению founder.",
+  applicationName: "AI Solution CRM",
+  keywords: [
+    "AI Solution CRM",
+    "aisolution crm",
+    "crm.aisolution.uz",
+    "CRM AI Solution",
+    "AI Solution",
+  ],
+  alternates: {
+    canonical: "/login",
+  },
+  openGraph: {
+    title: "AI Solution CRM",
+    description:
+      "Закрытая CRM AI Solution для лидов, проектов, команды и задач. Вход только для приглашённых участников.",
+    url: "https://crm.aisolution.uz/login",
+    siteName: "AI Solution CRM",
+    locale: "ru_RU",
+    type: "website",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-snippet": 160,
+      "max-image-preview": "large",
+    },
+  },
 };
 
 export default function RootLayout({

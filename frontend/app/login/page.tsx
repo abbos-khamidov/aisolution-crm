@@ -107,8 +107,12 @@ export default function LoginPage() {
             <span className="text-accent-strong">Ты тоже не жди.</span>
           </h1>
           <p className="mt-5 max-w-sm text-balance text-base leading-relaxed text-ink-dim">
-            Один вход — и вся воронка, все проекты и все дедлайны на расстоянии
-            клика. Без гугл-таблиц, без «а кто вёл этого клиента».
+            AI Solution CRM — закрытая рабочая система aisolution.uz. Один вход — и вся
+            воронка, все проекты и все дедлайны на расстоянии клика.
+          </p>
+          <p className="mt-4 max-w-sm text-sm leading-relaxed text-ink-faint">
+            Регистрации здесь нет: доступ выдаётся только по запросу founder, чтобы
+            данные клиентов и команды оставались внутри AI Solution.
           </p>
 
           <div className="mt-10 flex flex-col gap-3">
