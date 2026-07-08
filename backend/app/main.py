@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
@@ -11,6 +12,7 @@ from app.api.leads import router as leads_router
 from app.api.projects import router as projects_router
 from app.api.tasks import internal_router as bot_internal_router
 from app.api.tasks import router as tasks_router
+from app.core.config import settings
 from app.db.pool import close_pool, init_pool
 
 
@@ -22,6 +24,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="aisolutioncrm", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in settings.cors_allowed_origins.split(",")],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(auth_router)
 app.include_router(leads_router)
 app.include_router(clients_router)

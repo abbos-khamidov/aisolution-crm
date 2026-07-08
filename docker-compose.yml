@@ -22,6 +22,7 @@ services:
       JWT_SECRET: dev-secret-change-me
       INTERNAL_BOT_SECRET: dev-internal-bot-secret
       BOT_PUSH_URL: http://bot:8080
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
     ports:
       - "8000:8000"
     depends_on:

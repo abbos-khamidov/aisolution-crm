@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
 
+    # Comma-separated list — frontend runs on a different origin (Next.js dev
+    # server on :3000) than the API (:8000), so the browser enforces CORS even
+    # though curl/server-to-server calls never hit this restriction.
+    cors_allowed_origins: str = "http://localhost:3000"
+
     s3_endpoint_url: str | None = None
     s3_region: str = "us-east-1"
     s3_bucket: str = "aisolutioncrm-files"
