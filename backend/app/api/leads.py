@@ -1,4 +1,6 @@
+import datetime as dt
 import json
+from decimal import Decimal
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -217,3 +219,103 @@ async def patch_lead(
                 await record_event(conn, "lead", lead_id, user.id, "note_added", {})
 
     return _row_to_dict(row)
+
+
+class ConvertIn(BaseModel):
+    company_name: str | None = None
+    contact_info: dict[str, Any] = {}
+    project_name: str
+    description: str | None = None
+    start_date: dt.date | None = None
+    deadline: dt.date | None = None
+    budget_total: Decimal | None = None
+    currency: str | None = None
+
+
+@router.post("/{lead_id}/convert", status_code=status.HTTP_201_CREATED)
+async def convert_lead(
+    lead_id: int, body: ConvertIn, user: CurrentUser = Depends(get_current_user)
+) -> dict:
+    pool = get_pool()
+    is_founder = user.role == "founder"
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            lead = await conn.fetchrow(
+                "SELECT id, name, status, owner_id FROM leads "
+                "WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
+                lead_id,
+            )
+            if lead is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+            if not is_founder and lead["owner_id"] != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the lead owner or founder can convert this lead",
+                )
+            if lead["status"] != "won":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Lead must be status=won before it can be converted",
+                )
+
+            client = await conn.fetchrow(
+                """
+                INSERT INTO clients (lead_id, name, company_name, contact_info)
+                VALUES ($1, $2, $3, $4::jsonb)
+                RETURNING id, lead_id, name, company_name, contact_info, created_at
+                """,
+                lead_id,
+                lead["name"],
+                body.company_name,
+                json.dumps(body.contact_info),
+            )
+
+            project_owner_id = lead["owner_id"] or user.id
+            project = await conn.fetchrow(
+                """
+                INSERT INTO projects
+                    (client_id, name, description, owner_id, start_date, deadline,
+                     budget_total, currency)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                RETURNING id, client_id, name, description, stage, owner_id, start_date,
+                          deadline, budget_total, currency, created_at
+                """,
+                client["id"],
+                body.project_name,
+                body.description,
+                project_owner_id,
+                body.start_date,
+                body.deadline,
+                body.budget_total,
+                body.currency,
+            )
+
+            await conn.execute(
+                """
+                INSERT INTO project_members (project_id, user_id, role_on_project)
+                VALUES ($1, $2, 'lead')
+                ON CONFLICT (project_id, user_id) DO NOTHING
+                """,
+                project["id"],
+                project_owner_id,
+            )
+
+            await record_event(
+                conn,
+                "project",
+                project["id"],
+                user.id,
+                "created",
+                {"client_id": client["id"], "lead_id": lead_id},
+            )
+            await record_event(
+                conn,
+                "lead",
+                lead_id,
+                user.id,
+                "converted",
+                {"client_id": client["id"], "project_id": project["id"]},
+            )
+
+    return {"client": dict(client), "project": dict(project)}

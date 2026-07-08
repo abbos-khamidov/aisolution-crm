@@ -9,8 +9,8 @@
   пункт про Docker ниже.
 
 ## Текущая фаза
-Фаза 1: Лиды и owner-логика — done.
-Следующая: Фаза 2 — Клиенты и проекты.
+Фаза 2: Клиенты и проекты — done.
+Следующая: Фаза 3 — Финансы.
 
 ## Завершено
 - Фаза 0: monorepo (`/backend`, `/frontend`), первая Alembic-миграция (`users`,
@@ -23,6 +23,15 @@
   lost), события created/assigned/status_changed/note_added. Frontend: `/login`,
   `/leads` (очередь/мои лиды/все, claim-кнопка, форма смены статуса с
   обязательным loss_reason).
+- Фаза 2: таблицы `clients`, `projects`, `project_members`, `milestones`.
+  `POST /leads/{id}/convert` — won-лид одной операцией → client+project (сохраняет
+  `client.lead_id`), требует status=won иначе 400. CRUD `/projects`
+  (+ `deadline_status` green/yellow/red/none, вычисляется в SQL), `/clients`,
+  `/projects/{id}/members` (add/soft-remove), `/projects/{id}/milestones` +
+  `PATCH /milestones/{id}`. Events на project/milestone created/status_changed/
+  updated/member_added/member_removed. Frontend: `/projects` (дашборд с
+  цветовой индикацией по дедлайну, фильтр активные/все), кнопка "Создать
+  проект" на won-лидах в `/leads`.
 
 ## Decisions & Assumptions
 
@@ -100,6 +109,37 @@
   лид. Это самый простой вариант, не вводящий отдельную ветку логики "создал =
   сразу owner".
 
+- **[2026-07-08] `deleted_at` добавлен в `clients`, `milestones`,
+  `project_members`**, хотя ER раздела 3 их там не перечисляет. Раздел 3 сам
+  помечен как "укрупнённо", а hard constraint #2 ("ничего не удаляется, soft
+  delete везде") — не обсуждаемый. Для `project_members` это значит, что
+  "удаление" участника проекта — тоже `UPDATE deleted_at = now()`, а не
+  `DELETE FROM`, с событием `member_removed`.
+
+- **[2026-07-08] `milestones.deliverable_file_id` пока без FK.** Таблица `files`
+  появится только в фазе 4 — колонка создана как обычный `BIGINT` без
+  `REFERENCES`, FK будет добавлен `ALTER TABLE` в миграции фазы 4.
+
+- **[2026-07-08] `events.entity_type` расширен до `'milestone'`** (было:
+  `lead|project|task|file|finance_entry`). Milestone — самостоятельная сущность
+  со своим жизненным циклом (`pending→done/overdue`), сворачивать её историю
+  под `entity_type='project'` было бы неудобно для запросов "история именно
+  этого milestone'а". Ровно для такого расширения `entity_type` и сделан
+  `TEXT + CHECK`, а не Postgres `ENUM`, — миграция дропает и пересоздаёт
+  constraint одним `ALTER TABLE` без проблем транзакционности.
+
+- **[2026-07-08] `POST /leads/{id}/convert` требует status=won как
+  предусловие**, а не сам его выставляет. Founder/owner сначала переводит лид в
+  won обычным `PATCH /leads/{id}` (как любой другой статус), потом вызывает
+  convert. "Одна операция" из acceptance-критерия относится к тому, что client
+  И project создаются вместе одним вызовом — не к тому, что смена статуса и
+  создание сущностей смешаны в один endpoint.
+
+- **[2026-07-08] Permission-модель для project/milestone —
+  `is_founder OR owner_id = me`**, зеркально паттерну leads из фазы 1. Полноценный
+  RBAC (manager видит только назначенные проекты, developer — только свои
+  таски) — фаза 6, как и оговорено в CRM_SPEC.md разделе 6.
+
 ## Known issues / TODO
 - Docker-compose live run не проверен (см. Decisions выше) — проверить на
   реальной машине с установленным Docker/Colima перед деплоем.
@@ -108,9 +148,14 @@
   добавить shared-secret заголовок, не блокер для MVP.
 - Frontend leads-страница — минимальный интерфейс без пагинации/сортировки
   (лидов пока мало). Не оптимизировано, т.к. вне acceptance-критериев фазы 1.
+- `alembic downgrade` миграции 202607080003 упадёт, если в БД уже есть события
+  с `entity_type='milestone'` (даунгрейд возвращает CHECK без этого значения —
+  ожидаемо, даунгрейды не предназначены для использования поверх реальных
+  данных, только для чистого dev-отката). Проверено: чистый `upgrade head` с
+  нуля работает без ошибок.
 
 ## С чего продолжить следующую сессию
-Фаза 2 (`BUILD_PHASES.md` раздел "Фаза 2 — Клиенты и проекты"): конвертация
-won-лида в client+project одним действием, CRUD projects (+ project_members
-m2m), milestones, дашборд по дедлайну. Открыть `backend/app/api/`, добавить
-`clients.py`/`projects.py`, миграцию `backend/alembic/versions/`.
+Фаза 3 (`BUILD_PHASES.md` раздел "Фаза 3 — Финансы"): `finance_entries` CRUD
+(invoice/payment/expense), привязка к project, дашборд invoiced/paid/overdue,
+события. Открыть `backend/app/api/`, добавить `finance.py`, миграцию
+`backend/alembic/versions/`.

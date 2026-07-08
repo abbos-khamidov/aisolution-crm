@@ -10,7 +10,10 @@ from app.main import app, lifespan
 @pytest_asyncio.fixture
 async def db():
     conn = await asyncpg.connect(settings.database_url)
-    await conn.execute("TRUNCATE leads, events, users RESTART IDENTITY CASCADE;")
+    await conn.execute(
+        "TRUNCATE leads, events, users, clients, projects, project_members, milestones "
+        "RESTART IDENTITY CASCADE;"
+    )
     try:
         yield conn
     finally:

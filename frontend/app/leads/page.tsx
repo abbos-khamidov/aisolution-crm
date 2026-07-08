@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { apiFetch, clearTokens, getToken } from "@/lib/api";
 import { decodeJwt } from "@/lib/jwt";
 
@@ -97,19 +98,40 @@ export default function LeadsPage() {
     return lead.owner_id === Number(me.sub);
   }
 
+  async function convertToProject(lead: Lead) {
+    const projectName = window.prompt(`Название проекта для "${lead.name}"`);
+    if (!projectName) return;
+    setError(null);
+    const res = await apiFetch(`/leads/${lead.id}/convert`, {
+      method: "POST",
+      body: JSON.stringify({ project_name: projectName }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.detail ?? `Ошибка ${res.status}`);
+      return;
+    }
+    router.push("/projects");
+  }
+
   return (
     <main className="mx-auto max-w-5xl p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Лиды</h1>
-        <button
-          onClick={() => {
-            clearTokens();
-            router.push("/login");
-          }}
-          className="text-sm text-gray-500 underline"
-        >
-          Выйти
-        </button>
+        <div className="flex items-center gap-3">
+          <Link href="/projects" className="text-sm text-gray-500 underline">
+            Проекты
+          </Link>
+          <button
+            onClick={() => {
+              clearTokens();
+              router.push("/login");
+            }}
+            className="text-sm text-gray-500 underline"
+          >
+            Выйти
+          </button>
+        </div>
       </div>
 
       <div className="mb-4 flex gap-2">
@@ -154,6 +176,14 @@ export default function LeadsPage() {
                     className="w-fit rounded bg-black px-2 py-1 text-xs text-white"
                   >
                     Взять в работу
+                  </button>
+                )}
+                {lead.status === "won" && canEdit(lead) && (
+                  <button
+                    onClick={() => convertToProject(lead)}
+                    className="w-fit rounded bg-green-700 px-2 py-1 text-xs text-white"
+                  >
+                    Создать проект
                   </button>
                 )}
                 {canEdit(lead) && (
