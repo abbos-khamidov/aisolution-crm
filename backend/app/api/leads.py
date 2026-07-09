@@ -25,7 +25,7 @@ STATUS_LABELS = {
 }
 
 LEAD_FIELDS = """
-    id, source, name, phone, email, message, utm, status, owner_id, loss_reason,
+    id, source, name, company_name, phone, email, message, utm, status, owner_id, loss_reason,
     created_at, first_response_at, archived_at, proposal_file_id,
     expected_amount_min, expected_amount_mid, expected_amount_max,
     selected_package, selected_amount, currency
@@ -34,6 +34,7 @@ LEAD_FIELDS = """
 
 class WebsiteLeadIn(BaseModel):
     name: str
+    company_name: str | None = None
     phone: str | None = None
     email: str | None = None
     message: str | None = None
@@ -43,6 +44,7 @@ class WebsiteLeadIn(BaseModel):
 class ManualLeadIn(BaseModel):
     source: Literal["instagram", "telegram", "facebook", "referral", "other"]
     name: str
+    company_name: str | None = None
     phone: str | None = None
     email: str | None = None
     message: str | None = None
@@ -50,6 +52,10 @@ class ManualLeadIn(BaseModel):
 
 
 class LeadPatch(BaseModel):
+    name: str | None = None
+    company_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
     status: Literal["new", "contacted", "qualified", "proposal_sent", "won", "lost"] | None = None
     loss_reason: str | None = None
     message: str | None = None
@@ -258,12 +264,14 @@ async def _create_lead(
 
             row = await conn.fetchrow(
                 f"""
-                INSERT INTO leads (source, name, phone, email, message, utm, owner_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                INSERT INTO leads
+                    (source, name, company_name, phone, email, message, utm, owner_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING {LEAD_FIELDS}
                 """,
                 source,
                 body.name,
+                body.company_name,
                 body.phone,
                 body.email,
                 body.message,
@@ -631,6 +639,15 @@ async def patch_lead(
 
     pool = get_pool()
     is_founder = user.role == "founder"
+    fields_set = body.model_fields_set
+    if "name" in fields_set and not (body.name or "").strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Lead name is required")
+
+    name = body.name.strip() if body.name is not None else None
+    company_name = body.company_name.strip() or None if body.company_name is not None else None
+    phone = body.phone.strip() or None if body.phone is not None else None
+    email = body.email.strip() or None if body.email is not None else None
+    message = body.message.strip() or None if body.message is not None else None
 
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -654,7 +671,8 @@ async def patch_lead(
                 )
             if body.owner_id is not None:
                 assignee = await conn.fetchval(
-                    "SELECT id FROM users WHERE id = $1 AND role IN ('founder', 'manager', 'developer') "
+                    "SELECT id FROM users "
+                    "WHERE id = $1 AND role IN ('founder', 'manager', 'developer') "
                     "AND is_active AND deleted_at IS NULL",
                     body.owner_id,
                 )
@@ -677,8 +695,8 @@ async def patch_lead(
                 UPDATE leads
                 SET status = $1,
                     loss_reason = COALESCE($2, loss_reason),
-                    message = COALESCE($3, message),
-                    first_response_at = CASE WHEN $4 THEN now() ELSE first_response_at END,
+                    message = CASE WHEN $3 THEN $4 ELSE message END,
+                    first_response_at = CASE WHEN $5 THEN now() ELSE first_response_at END,
                     owner_id = COALESCE($6, owner_id),
                     proposal_file_id = COALESCE($7, proposal_file_id),
                     expected_amount_min = COALESCE($8, expected_amount_min),
@@ -686,15 +704,19 @@ async def patch_lead(
                     expected_amount_max = COALESCE($10, expected_amount_max),
                     selected_package = COALESCE($11, selected_package),
                     selected_amount = COALESCE($12, selected_amount),
-                    currency = COALESCE($13, currency)
-                WHERE id = $5
+                    currency = COALESCE($13, currency),
+                    name = CASE WHEN $14 THEN $15 ELSE name END,
+                    company_name = CASE WHEN $16 THEN $17 ELSE company_name END,
+                    phone = CASE WHEN $18 THEN $19 ELSE phone END,
+                    email = CASE WHEN $20 THEN $21 ELSE email END
+                WHERE id = $22
                 RETURNING {LEAD_FIELDS}
                 """,
                 new_status,
                 body.loss_reason,
-                body.message,
+                "message" in fields_set,
+                message,
                 set_first_response,
-                lead_id,
                 body.owner_id,
                 body.proposal_file_id,
                 body.expected_amount_min,
@@ -703,6 +725,15 @@ async def patch_lead(
                 body.selected_package,
                 body.selected_amount,
                 body.currency,
+                "name" in fields_set,
+                name,
+                "company_name" in fields_set,
+                company_name,
+                "phone" in fields_set,
+                phone,
+                "email" in fields_set,
+                email,
+                lead_id,
             )
 
             if row["status"] == "won" and row["selected_amount"] is None:
@@ -724,8 +755,19 @@ async def patch_lead(
                         "reason": body.loss_reason,
                     },
                 )
-            elif body.message is not None:
-                await record_event(conn, "lead", lead_id, user.id, "note_added", {})
+            elif {"name", "company_name", "phone", "email", "message"} & fields_set:
+                await record_event(
+                    conn,
+                    "lead",
+                    lead_id,
+                    user.id,
+                    "updated",
+                    {
+                        "fields": sorted(
+                            {"name", "company_name", "phone", "email", "message"} & fields_set
+                        )
+                    },
+                )
             if body.owner_id is not None and body.owner_id != current["owner_id"]:
                 await record_event(
                     conn,
@@ -769,7 +811,7 @@ async def convert_lead(
     async with pool.acquire() as conn:
         async with conn.transaction():
             lead = await conn.fetchrow(
-                "SELECT id, name, status, owner_id FROM leads "
+                "SELECT id, name, company_name, status, owner_id FROM leads "
                 "WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
                 lead_id,
             )
@@ -794,7 +836,7 @@ async def convert_lead(
                 """,
                 lead_id,
                 lead["name"],
-                body.company_name,
+                body.company_name or lead["company_name"],
                 body.contact_info,
             )
 

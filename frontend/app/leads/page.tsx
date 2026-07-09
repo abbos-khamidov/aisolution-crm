@@ -27,6 +27,7 @@ interface Lead {
   id: number;
   source: string;
   name: string;
+  company_name: string | null;
   phone: string | null;
   email: string | null;
   message: string | null;
@@ -62,6 +63,14 @@ interface DealDraft {
   proposal_file_id: number | null;
   proposal_file_name: string;
   file: File | null;
+}
+
+interface ContactDraft {
+  name: string;
+  company_name: string;
+  phone: string;
+  email: string;
+  message: string;
 }
 
 const STATUSES = ["new", "contacted", "qualified", "proposal_sent", "won", "lost"];
@@ -106,11 +115,13 @@ export default function LeadsPage() {
   const [openNoteLeadId, setOpenNoteLeadId] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [dealDrafts, setDealDrafts] = useState<Record<number, DealDraft>>({});
+  const [contactDrafts, setContactDrafts] = useState<Record<number, ContactDraft>>({});
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
   const [detailLeadId, setDetailLeadId] = useState<number | null>(null);
   const [manualLead, setManualLead] = useState({
     source: "other",
     name: "",
+    company_name: "",
     phone: "",
     email: "",
     message: "",
@@ -135,6 +146,19 @@ export default function LeadsPage() {
     }
     const data: Lead[] = await res.json();
     setLeads(data);
+    setContactDrafts((current) => {
+      const next = { ...current };
+      for (const lead of data) {
+        next[lead.id] = {
+          name: lead.name,
+          company_name: lead.company_name ?? "",
+          phone: lead.phone ?? "",
+          email: lead.email ?? "",
+          message: lead.message ?? "",
+        };
+      }
+      return next;
+    });
     setDealDrafts((current) => {
       const next = { ...current };
       for (const lead of data) {
@@ -196,7 +220,14 @@ export default function LeadsPage() {
     if (filter === "queue" && lead.owner_id !== null) return false;
     if (filter === "mine" && (!me || lead.owner_id !== Number(me.sub))) return false;
     if (["won", "lost"].includes(lead.status) && filter !== "all") return false;
-    const haystack = [lead.name, lead.phone, lead.email, lead.message, sourceLabel(lead)]
+    const haystack = [
+      lead.name,
+      lead.company_name,
+      lead.phone,
+      lead.email,
+      lead.message,
+      sourceLabel(lead),
+    ]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
@@ -227,6 +258,22 @@ export default function LeadsPage() {
           proposal_file_id: null,
           proposal_file_name: "",
           file: null,
+        }),
+        ...patch,
+      },
+    }));
+  }
+
+  function updateContactDraft(leadId: number, patch: Partial<ContactDraft>) {
+    setContactDrafts((current) => ({
+      ...current,
+      [leadId]: {
+        ...(current[leadId] ?? {
+          name: "",
+          company_name: "",
+          phone: "",
+          email: "",
+          message: "",
         }),
         ...patch,
       },
@@ -288,6 +335,7 @@ export default function LeadsPage() {
       body: JSON.stringify({
         source: manualLead.source,
         name: manualLead.name.trim(),
+        company_name: manualLead.company_name.trim() || null,
         phone: manualLead.phone.trim() || null,
         email: manualLead.email.trim() || null,
         message: manualLead.message.trim() || null,
@@ -299,8 +347,41 @@ export default function LeadsPage() {
       setError(body.detail ?? `Ошибка ${res.status}`);
       return;
     }
-    setManualLead({ source: "other", name: "", phone: "", email: "", message: "" });
+    setManualLead({
+      source: "other",
+      name: "",
+      company_name: "",
+      phone: "",
+      email: "",
+      message: "",
+    });
     setShowManualModal(false);
+    await loadLeads();
+  }
+
+  async function saveLeadDetails(lead: Lead) {
+    const draft = contactDrafts[lead.id];
+    if (!draft?.name.trim()) {
+      setError("Имя или название лида обязательно.");
+      return;
+    }
+    setError(null);
+    const res = await apiFetch(`/leads/${lead.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: draft.name.trim(),
+        company_name: draft.company_name.trim() || null,
+        phone: draft.phone.trim() || null,
+        email: draft.email.trim() || null,
+        message: draft.message.trim() || null,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.detail ?? `Ошибка ${res.status}`);
+      return;
+    }
+    showToast(`Контакты лида сохранены: ${draft.name.trim()}.`);
     await loadLeads();
   }
 
@@ -504,6 +585,7 @@ export default function LeadsPage() {
                 : "Ответственный не назначен";
               const nextStatus = statusDrafts[lead.id] ?? lead.status;
               const dealDraft = dealDrafts[lead.id];
+              const contactDraft = contactDrafts[lead.id];
               return (
                 <article
                   key={lead.id}
@@ -527,6 +609,11 @@ export default function LeadsPage() {
                       <h3 className="truncate font-display text-lg font-semibold text-ink">
                         {lead.name}
                       </h3>
+                      {lead.company_name && (
+                        <p className="mt-0.5 truncate text-sm font-medium text-ink-dim">
+                          {lead.company_name}
+                        </p>
+                      )}
                       <p className="mt-1 text-xs font-medium text-accent-strong">
                         Этап: {STATUS_LABEL[lead.status] ?? lead.status}. Кликните, чтобы узнать подробнее.
                       </p>
@@ -551,6 +638,63 @@ export default function LeadsPage() {
                         <p className="mt-3 whitespace-pre-wrap rounded-xl bg-bg px-3 py-2 text-sm leading-relaxed text-ink-dim">
                           {lead.message}
                         </p>
+                      )}
+                      {canEdit(lead) && contactDraft && (
+                        <div
+                          className="mt-4 rounded-xl border border-border bg-bg p-3"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
+                            <Phone size={16} className="text-accent-strong" />
+                            Контакты лида
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <input
+                              className="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-ink"
+                              placeholder="Имя / название лида"
+                              value={contactDraft.name}
+                              onChange={(e) => updateContactDraft(lead.id, { name: e.target.value })}
+                            />
+                            <input
+                              className="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-ink"
+                              placeholder="Компания"
+                              value={contactDraft.company_name}
+                              onChange={(e) =>
+                                updateContactDraft(lead.id, { company_name: e.target.value })
+                              }
+                            />
+                            <input
+                              className="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-ink"
+                              placeholder="Телефон / Telegram"
+                              value={contactDraft.phone}
+                              onChange={(e) => updateContactDraft(lead.id, { phone: e.target.value })}
+                            />
+                            <input
+                              className="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-ink"
+                              placeholder="Email"
+                              value={contactDraft.email}
+                              onChange={(e) => updateContactDraft(lead.id, { email: e.target.value })}
+                            />
+                          </div>
+                          <textarea
+                            className="mt-2 min-h-20 w-full rounded-lg border border-border bg-surface px-2 py-2 text-sm text-ink"
+                            placeholder="Задача / комментарий"
+                            value={contactDraft.message}
+                            onChange={(e) =>
+                              updateContactDraft(lead.id, { message: e.target.value })
+                            }
+                          />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              saveLeadDetails(lead);
+                            }}
+                            className="mt-2 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-surface-2 px-3 text-sm font-semibold text-ink hover:bg-border-bright"
+                          >
+                            <Save size={15} />
+                            Сохранить контакты
+                          </button>
+                        </div>
                       )}
                       {canEdit(lead) && dealDraft && (
                         <div className="mt-4 rounded-xl border border-border bg-bg p-3">
@@ -843,6 +987,7 @@ export default function LeadsPage() {
                 <div className="mt-3 space-y-2 text-sm text-ink-dim">
                   <p><span className="font-semibold text-ink">Статус:</span> {STATUS_LABEL[detailLead.status] ?? detailLead.status}</p>
                   <p><span className="font-semibold text-ink">Ответственный:</span> {detailLead.owner_id ? userById.get(detailLead.owner_id)?.name ?? detailLead.owner_id : "не назначен"}</p>
+                  {detailLead.company_name && <p><span className="font-semibold text-ink">Компания:</span> {detailLead.company_name}</p>}
                   {detailLead.phone && <p><span className="font-semibold text-ink">Телефон:</span> {detailLead.phone}</p>}
                   {detailLead.email && <p><span className="font-semibold text-ink">Email:</span> {detailLead.email}</p>}
                   {detailLead.loss_reason && <p><span className="font-semibold text-ink">Причина отказа:</span> {detailLead.loss_reason}</p>}
@@ -895,6 +1040,12 @@ export default function LeadsPage() {
                 placeholder="Имя"
                 value={manualLead.name}
                 onChange={(e) => setManualLead({ ...manualLead, name: e.target.value })}
+              />
+              <input
+                className="h-10 w-full rounded-lg border border-border bg-bg px-3 text-sm text-ink"
+                placeholder="Компания"
+                value={manualLead.company_name}
+                onChange={(e) => setManualLead({ ...manualLead, company_name: e.target.value })}
               />
               <input
                 className="h-10 w-full rounded-lg border border-border bg-bg px-3 text-sm text-ink"

@@ -69,6 +69,49 @@ async def test_founder_can_reassign_and_patch_any_lead(client, db):
 
 
 @pytest.mark.asyncio
+async def test_owner_can_patch_lead_contact_fields_and_clear_values(client, db):
+    lead_id = await _create_lead(db)
+    _, token = await make_user(db, "Owner", "owner@example.com", "manager")
+    await client.post(f"/leads/{lead_id}/claim", headers=auth_headers(token))
+
+    resp = await client.patch(
+        f"/leads/{lead_id}",
+        json={
+            "name": "Updated Lead",
+            "company_name": "Acme LLC",
+            "phone": "+998901234567",
+            "email": "lead@example.com",
+            "message": "Updated task",
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name"] == "Updated Lead"
+    assert body["company_name"] == "Acme LLC"
+    assert body["phone"] == "+998901234567"
+    assert body["email"] == "lead@example.com"
+    assert body["message"] == "Updated task"
+
+    clear = await client.patch(
+        f"/leads/{lead_id}",
+        json={"phone": None, "company_name": None},
+        headers=auth_headers(token),
+    )
+    assert clear.status_code == 200
+    assert clear.json()["phone"] is None
+    assert clear.json()["company_name"] is None
+
+    events = await db.fetch(
+        "SELECT event_type, payload FROM events WHERE entity_type = 'lead' AND entity_id = $1 "
+        "ORDER BY created_at",
+        lead_id,
+    )
+    assert events[-2]["event_type"] == "updated"
+    assert "company_name" in events[-2]["payload"]["fields"]
+
+
+@pytest.mark.asyncio
 async def test_lost_without_reason_is_400(client, db):
     lead_id = await _create_lead(db)
     _, token = await make_user(db, "Manager", "m@example.com", "manager")
