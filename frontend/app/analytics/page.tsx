@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { LayoutDashboard } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { GroupedBarChart, type ChartColor } from "@/components/Charts";
 import { apiFetch, clearTokens } from "@/lib/api";
@@ -134,6 +136,27 @@ export default function AnalyticsPage() {
 
       {!error && (
         <div className="flex flex-col gap-8">
+          <section className="rise-in rounded-2xl border border-border bg-surface p-5 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase text-ink-faint">Power BI формат</p>
+                <h2 className="mt-1 font-display text-xl font-semibold text-ink">
+                  Дашбоард с графиками, цифрами и выводами
+                </h2>
+                <p className="mt-1 text-sm text-ink-dim">
+                  Один экран для понимания: лиды, каналы, менеджеры, деньги и риски.
+                </p>
+              </div>
+              <Link
+                href="/analytics/dashboard"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-accent px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-strong"
+              >
+                <LayoutDashboard size={17} />
+                Дашбоард
+              </Link>
+            </div>
+          </section>
+
           <Section title="Воронка" delay={40}>
             <table className="w-full text-sm">
               <thead>
