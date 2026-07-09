@@ -972,6 +972,7 @@ h1, h2, h3, h4, .font-display {
     right: auto;
     width: 100vw;
     max-width: 100vw;
+    align-items: flex-start;
     overflow: hidden;
     justify-content: center;
     gap: 14px;
@@ -982,6 +983,7 @@ h1, h2, h3, h4, .font-display {
     box-sizing: border-box;
     width: calc(100vw - 32px);
     max-width: 358px;
+    margin: 0;
     padding: 22px 18px;
     border-radius: 26px;
   }
@@ -1015,6 +1017,7 @@ h1, h2, h3, h4, .font-display {
     box-sizing: border-box;
     width: calc(100vw - 32px);
     max-width: 358px;
+    margin: 0;
     gap: 0;
     border-radius: 18px;
     padding: 10px;
