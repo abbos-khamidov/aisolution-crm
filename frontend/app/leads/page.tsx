@@ -524,13 +524,13 @@ export default function LeadsPage() {
         </p>
       )}
 
-      <div className="mb-4 rounded-2xl border border-border bg-surface p-4">
+      <div className="sticky top-3 z-20 mb-4 rounded-2xl border border-border bg-surface/95 p-3 shadow-sm backdrop-blur lg:static lg:p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="font-display text-lg font-semibold text-ink">
+            <p className="font-display text-base font-semibold text-ink sm:text-lg">
               {filter === "archive" ? "Архив лидов" : "Рабочая очередь"}
             </p>
-            <p className="text-sm text-ink-dim">
+            <p className="text-xs leading-5 text-ink-dim sm:text-sm">
               {filter === "archive"
                 ? `${leads.length} в архиве · сначала новые`
                 : `${activeCount} в работе · ${queueCount} без ответственного · сначала новые`}
@@ -555,12 +555,12 @@ export default function LeadsPage() {
             </button>
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible lg:pb-0">
           {FILTERS.map((item) => (
             <button
               key={item.key}
               onClick={() => setFilter(item.key)}
-              className={`h-10 rounded-lg px-4 text-sm font-semibold transition ${
+              className={`h-9 shrink-0 rounded-lg px-3 text-xs font-semibold transition sm:h-10 sm:px-4 sm:text-sm ${
                 filter === item.key ? "bg-accent text-white" : "bg-bg text-ink-dim hover:text-ink"
               }`}
             >
@@ -569,7 +569,7 @@ export default function LeadsPage() {
           ))}
           <button
             onClick={() => setFilter("archive")}
-            className={`h-10 rounded-lg px-4 text-sm font-semibold transition ${
+            className={`h-9 shrink-0 rounded-lg px-3 text-xs font-semibold transition sm:h-10 sm:px-4 sm:text-sm ${
               filter === "archive" ? "bg-accent text-white" : "bg-bg text-ink-dim hover:text-ink"
             }`}
           >
@@ -595,7 +595,7 @@ export default function LeadsPage() {
               <Link
                 key={lead.id}
                 href={`/leads/${lead.id}`}
-                className="grid gap-3 px-4 py-3 transition hover:bg-accent-soft/45 lg:grid-cols-[1.5fr_1fr_0.8fr_0.8fr_auto] lg:items-center"
+                className="grid gap-2 px-3 py-3 transition hover:bg-accent-soft/45 sm:px-4 lg:grid-cols-[1.5fr_1fr_0.8fr_0.8fr_auto] lg:gap-3 lg:items-center"
               >
                 <div className="min-w-0">
                   <div className="mb-1 flex flex-wrap items-center gap-2">
@@ -611,14 +611,16 @@ export default function LeadsPage() {
                   <p className="truncate">{lead.phone || lead.email || "Контакта нет"}</p>
                   {lead.message && <p className="truncate text-xs text-ink-faint">{lead.message}</p>}
                 </div>
-                <div>
-                  <Badge label={STATUS_LABEL[lead.status] ?? lead.status} tone={STATUS_TONE[lead.status] ?? "neutral"} />
+                <div className="flex min-w-0 items-center justify-between gap-2 lg:contents">
+                  <div>
+                    <Badge label={STATUS_LABEL[lead.status] ?? lead.status} tone={STATUS_TONE[lead.status] ?? "neutral"} />
+                  </div>
+                  <p className="min-w-0 flex-1 truncate text-right text-xs font-medium text-ink-dim lg:text-left lg:text-sm">{owner}</p>
+                  <span className="inline-flex shrink-0 items-center justify-end gap-1 text-xs font-semibold text-accent-strong lg:gap-2 lg:text-sm">
+                    Открыть
+                    <ArrowRight size={15} />
+                  </span>
                 </div>
-                <p className="truncate text-sm font-medium text-ink-dim">{owner}</p>
-                <span className="inline-flex items-center justify-end gap-2 text-sm font-semibold text-accent-strong">
-                  Открыть
-                  <ArrowRight size={16} />
-                </span>
               </Link>
             );
           })}

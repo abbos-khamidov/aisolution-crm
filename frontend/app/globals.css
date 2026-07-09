@@ -746,6 +746,37 @@ h1, h2, h3, h4, .font-display {
   will-change: background-position;
 }
 
+.intro-scan {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(72vw, 860px);
+  height: min(72vw, 860px);
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: conic-gradient(from 0deg, transparent 0 72%, rgba(11,127,232,.22), rgba(5,150,105,.18), transparent 86% 100%);
+  filter: blur(.2px);
+  opacity: .78;
+  animation: intro-scan-spin 6.5s linear infinite;
+  -webkit-mask: radial-gradient(circle, transparent 0 31%, #000 32% 33%, transparent 34% 100%);
+  mask: radial-gradient(circle, transparent 0 31%, #000 32% 33%, transparent 34% 100%);
+}
+
+.intro-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 999px;
+  border: 1px solid rgba(11,127,232,.16);
+  transform: translate(-50%, -50%) scale(.86);
+  opacity: 0;
+  animation: intro-ring-wave 3.2s ease-out infinite;
+}
+
+.intro-ring--one { width: 260px; height: 260px; animation-delay: 0s; }
+.intro-ring--two { width: 440px; height: 440px; animation-delay: .72s; border-color: rgba(5,150,105,.14); }
+.intro-ring--three { width: 640px; height: 640px; animation-delay: 1.42s; border-color: rgba(245,158,11,.14); }
+
 .intro-line {
   position: absolute;
   left: 50%;
@@ -762,6 +793,92 @@ h1, h2, h3, h4, .font-display {
 .intro-line--one { transform: rotate(0deg) translateX(-6vw); }
 .intro-line--two { transform: rotate(132deg) translateX(-6vw); background: linear-gradient(90deg, transparent, rgba(5,150,105,.75), transparent); }
 .intro-line--three { transform: rotate(226deg) translateX(-6vw); background: linear-gradient(90deg, transparent, rgba(245,158,11,.75), transparent); }
+
+.intro-route {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(44vw, 560px);
+  height: min(18vw, 210px);
+  border-radius: 999px;
+  border: 1px solid rgba(11,127,232,.2);
+  border-left-color: transparent;
+  border-bottom-color: transparent;
+  transform-origin: left center;
+  opacity: .72;
+}
+
+.intro-route::after {
+  content: "";
+  position: absolute;
+  right: 13%;
+  top: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 0 5px rgba(11,127,232,.16), 0 0 22px rgba(11,127,232,.55);
+  animation: intro-route-packet 2.4s cubic-bezier(.16, 1, .3, 1) infinite;
+}
+
+.intro-route--one { transform: rotate(-8deg) translate(-8%, -52%); }
+.intro-route--two { transform: rotate(126deg) translate(-8%, -52%); border-color: rgba(5,150,105,.2); border-left-color: transparent; border-bottom-color: transparent; }
+.intro-route--two::after { box-shadow: 0 0 0 5px rgba(5,150,105,.16), 0 0 22px rgba(5,150,105,.55); animation-delay: .42s; }
+.intro-route--three { transform: rotate(236deg) translate(-8%, -52%); border-color: rgba(245,158,11,.2); border-left-color: transparent; border-bottom-color: transparent; }
+.intro-route--three::after { box-shadow: 0 0 0 5px rgba(245,158,11,.16), 0 0 22px rgba(245,158,11,.55); animation-delay: .84s; }
+
+.intro-node,
+.intro-metric {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  border: 1px solid rgba(15,23,42,.08);
+  background: rgba(255,255,255,.74);
+  box-shadow: 0 24px 70px -42px rgba(11,79,158,.65), inset 0 1px 0 rgba(255,255,255,.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.intro-node {
+  min-width: 96px;
+  border-radius: 18px;
+  padding: 10px 12px;
+  animation: intro-node-float 4.8s ease-in-out infinite;
+}
+
+.intro-node b,
+.intro-metric b {
+  font-family: var(--font-display), sans-serif;
+  color: var(--text);
+  line-height: 1;
+}
+
+.intro-node small,
+.intro-metric small {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.intro-node--site { left: 10%; top: 24%; border-color: rgba(11,127,232,.2); }
+.intro-node--lead { right: 12%; top: 24%; border-color: rgba(5,150,105,.2); animation-delay: .4s; }
+.intro-node--proposal { left: 14%; bottom: 25%; border-color: rgba(245,158,11,.22); animation-delay: .8s; }
+.intro-node--project { right: 13%; bottom: 23%; border-color: rgba(11,127,232,.2); animation-delay: 1.2s; }
+
+.intro-metric {
+  border-radius: 20px;
+  padding: 12px 14px;
+  animation: intro-metric-pop 3.6s ease-in-out infinite;
+}
+
+.intro-metric b {
+  font-size: 24px;
+}
+
+.intro-metric--one { left: 18%; top: 12%; }
+.intro-metric--two { right: 17%; bottom: 12%; animation-delay: 1.1s; }
 
 .intro-particle {
   position: absolute;
@@ -930,6 +1047,33 @@ h1, h2, h3, h4, .font-display {
   to { background-position: 220px 0, 0 220px; }
 }
 
+@keyframes intro-scan-spin {
+  to { transform: translate(-50%, -50%) rotate(1turn); }
+}
+
+@keyframes intro-ring-wave {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.72); }
+  18% { opacity: .88; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.18); }
+}
+
+@keyframes intro-route-packet {
+  0% { transform: translateX(-220%) scale(.65); opacity: 0; }
+  16% { opacity: 1; }
+  76% { transform: translateX(60%) scale(1.05); opacity: .95; }
+  100% { transform: translateX(130%) scale(.75); opacity: 0; }
+}
+
+@keyframes intro-node-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+
+@keyframes intro-metric-pop {
+  0%, 100% { transform: translateY(0) scale(1); opacity: .72; }
+  45% { transform: translateY(-8px) scale(1.04); opacity: 1; }
+}
+
 @keyframes intro-particle-flow {
   0% { transform: translate(var(--x), var(--y)) scale(.5); opacity: 0; }
   16% { opacity: 1; }
@@ -958,6 +1102,11 @@ h1, h2, h3, h4, .font-display {
   .intro-particle,
   .intro-progress,
   .intro-line,
+  .intro-ring,
+  .intro-route::after,
+  .intro-scan,
+  .intro-node,
+  .intro-metric,
   .radar-sweep,
   .signal-packet,
   .route-runner,
@@ -987,6 +1136,27 @@ h1, h2, h3, h4, .font-display {
     justify-content: center;
     gap: 14px;
     padding: 64px 16px 28px;
+  }
+
+  .intro-node,
+  .intro-metric {
+    display: none;
+  }
+
+  .intro-scan {
+    width: 520px;
+    height: 520px;
+    opacity: .58;
+  }
+
+  .intro-ring--one { width: 180px; height: 180px; }
+  .intro-ring--two { width: 300px; height: 300px; }
+  .intro-ring--three { width: 420px; height: 420px; }
+
+  .intro-route {
+    width: 340px;
+    height: 120px;
+    opacity: .48;
   }
 
   .intro-core {
@@ -1058,6 +1228,10 @@ h1, h2, h3, h4, .font-display {
     max-width: calc(100vw - 28px);
     padding: 9px 12px;
     background: rgba(255,255,255,.9);
+  }
+
+  .money-rain-canvas {
+    opacity: .58;
   }
 }
 

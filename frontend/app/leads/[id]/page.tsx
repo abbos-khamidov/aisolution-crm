@@ -217,8 +217,8 @@ export default function LeadDetailPage() {
         </p>
       )}
       {lead && (
-        <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
-          <section className="rounded-2xl border border-border bg-surface p-5">
+        <div className="grid gap-4 lg:grid-cols-[1fr_340px] lg:gap-5">
+          <section className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
             <div className="mb-5 flex flex-wrap items-center gap-2">
               <Badge label={STATUS_LABEL[lead.status] ?? lead.status} tone={STATUS_TONE[lead.status] ?? "neutral"} />
               <Badge label={owner} tone={lead.owner_id ? "accent" : "spark"} />
@@ -238,7 +238,7 @@ export default function LeadDetailPage() {
           </section>
 
           <aside className="space-y-4">
-            <section className="rounded-2xl border border-border bg-surface p-5">
+            <section className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
               <h2 className="font-display text-lg font-semibold text-ink">Статус и владелец</h2>
               <div className="mt-3 grid gap-3">
                 <Field label="Статус">
@@ -263,9 +263,9 @@ export default function LeadDetailPage() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-border bg-surface p-5">
+            <section className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
               <h2 className="font-display text-lg font-semibold text-ink">КП и сумма</h2>
-              <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <Field label="Мин"><input inputMode="decimal" value={form.expected_amount_min} onChange={(e) => setForm({ ...form, expected_amount_min: e.target.value })} className="field" /></Field>
                 <Field label="Сред"><input inputMode="decimal" value={form.expected_amount_mid} onChange={(e) => setForm({ ...form, expected_amount_mid: e.target.value })} className="field" /></Field>
                 <Field label="Макс"><input inputMode="decimal" value={form.expected_amount_max} onChange={(e) => setForm({ ...form, expected_amount_max: e.target.value })} className="field" /></Field>

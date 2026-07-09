@@ -308,9 +308,32 @@ function LoginIntro({ onDone }: { onDone: () => void }) {
   return (
     <section className="login-intro">
       <div className="intro-map" aria-hidden="true">
+        <span className="intro-scan" />
+        <span className="intro-ring intro-ring--one" />
+        <span className="intro-ring intro-ring--two" />
+        <span className="intro-ring intro-ring--three" />
         <span className="intro-line intro-line--one" />
         <span className="intro-line intro-line--two" />
         <span className="intro-line intro-line--three" />
+        <span className="intro-route intro-route--one" />
+        <span className="intro-route intro-route--two" />
+        <span className="intro-route intro-route--three" />
+        <span className="intro-node intro-node--site">
+          <b>Сайт</b>
+          <small>форма</small>
+        </span>
+        <span className="intro-node intro-node--lead">
+          <b>Лид</b>
+          <small>owner</small>
+        </span>
+        <span className="intro-node intro-node--proposal">
+          <b>КП</b>
+          <small>PDF</small>
+        </span>
+        <span className="intro-node intro-node--project">
+          <b>Проект</b>
+          <small>$ forecast</small>
+        </span>
         {INTRO_PARTICLES.map((p) => (
           <span
             key={p.id}
@@ -326,6 +349,14 @@ function LoginIntro({ onDone }: { onDone: () => void }) {
             }
           />
         ))}
+        <span className="intro-metric intro-metric--one">
+          <b>+1</b>
+          <small>новая заявка</small>
+        </span>
+        <span className="intro-metric intro-metric--two">
+          <b>94%</b>
+          <small>маршрут собран</small>
+        </span>
       </div>
       <div className="intro-core">
         <Image src="/logo-light.png" alt="AI Solution" width={96} height={96} className="h-20 w-20 object-contain" priority />
