@@ -5,13 +5,14 @@ from pydantic import BaseModel
 
 from app.core.deps import CurrentUser, require_founder, require_staff_role
 from app.core.security import hash_password
+from app.db.events import record_event
 from app.db.pool import get_pool
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 USER_FIELDS = """
     id, name, phone, email, telegram_id, telegram_username, photo_url, quote,
-    role, role_title, is_active, created_at,
+    role, role_title, is_active, created_at, archived_at,
     can_view_all_leads, can_view_analytics, can_view_finance
 """
 Role = Literal["founder", "manager", "developer", "student"]
@@ -59,10 +60,17 @@ class ProfilePatch(BaseModel):
 
 
 @router.get("")
-async def list_users(user: CurrentUser = Depends(require_staff_role)) -> list[dict]:
+async def list_users(
+    archived: bool = False, user: CurrentUser = Depends(require_staff_role)
+) -> list[dict]:
     pool = get_pool()
+    condition = "archived_at IS NOT NULL" if archived else "archived_at IS NULL"
     rows = await pool.fetch(
-        f"SELECT {USER_FIELDS} FROM users WHERE deleted_at IS NULL ORDER BY is_active DESC, name"
+        f"""
+        SELECT {USER_FIELDS} FROM users
+        WHERE deleted_at IS NULL AND {condition}
+        ORDER BY is_active DESC, name
+        """
     )
     return [dict(r) for r in rows]
 
@@ -196,4 +204,58 @@ async def patch_user(
     )
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return dict(row)
+
+
+@router.post("/{user_id}/archive")
+async def archive_user(
+    user_id: int, user: CurrentUser = Depends(require_founder)
+) -> dict:
+    return await _set_user_archive(user_id, user, archived=True)
+
+
+@router.post("/{user_id}/unarchive")
+async def unarchive_user(
+    user_id: int, user: CurrentUser = Depends(require_founder)
+) -> dict:
+    return await _set_user_archive(user_id, user, archived=False)
+
+
+async def _set_user_archive(user_id: int, user: CurrentUser, archived: bool) -> dict:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            current = await conn.fetchrow(
+                "SELECT id, role FROM users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
+                user_id,
+            )
+            if current is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            if archived and current["role"] == "founder":
+                # Archiving is a founder-only action, but archiving the last
+                # founder account would leave no one able to unarchive
+                # anyone — not worth the edge case of tracking "last founder".
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot archive a founder account",
+                )
+            row = await conn.fetchrow(
+                f"""
+                UPDATE users
+                SET archived_at = CASE WHEN $1 THEN now() ELSE NULL END,
+                    is_active = CASE WHEN $1 THEN false ELSE is_active END
+                WHERE id = $2
+                RETURNING {USER_FIELDS}
+                """,
+                archived,
+                user_id,
+            )
+            await record_event(
+                conn,
+                "user",
+                user_id,
+                user.id,
+                "archived" if archived else "unarchived",
+                {},
+            )
     return dict(row)

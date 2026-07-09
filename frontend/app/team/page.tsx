@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import { Archive, Eye, EyeOff } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import Badge from "@/components/Badge";
 import { apiFetch, clearTokens } from "@/lib/api";
@@ -150,6 +151,17 @@ export default function TeamPage() {
     await load();
   }
 
+  async function archiveUser(userId: number) {
+    setError(null);
+    const res = await apiFetch(`/users/${userId}/archive`, { method: "POST" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.detail ?? `Ошибка ${res.status}`);
+      return;
+    }
+    await load();
+  }
+
   function updateDraft(userId: number, patch: Partial<UserDraft>) {
     setDrafts((current) => ({
       ...current,
@@ -213,34 +225,43 @@ export default function TeamPage() {
         <button onClick={createUser} className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-white">Добавить</button>
       </div>
 
-      <div className="mb-5 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">Должность</span>
-        <button
-          onClick={() => setPositionFilter(ALL_POSITIONS)}
-          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-            positionFilter === ALL_POSITIONS
-              ? "border-accent bg-accent text-white"
-              : "border-border bg-surface text-ink-dim hover:border-border-bright"
-          }`}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">Должность</span>
+          <button
+            onClick={() => setPositionFilter(ALL_POSITIONS)}
+            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+              positionFilter === ALL_POSITIONS
+                ? "border-accent bg-accent text-white"
+                : "border-border bg-surface text-ink-dim hover:border-border-bright"
+            }`}
+          >
+            Все ({users.length})
+          </button>
+          {positions.map((position) => {
+            const count = users.filter((u) => positionOf(u) === position).length;
+            return (
+              <button
+                key={position}
+                onClick={() => setPositionFilter(position)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                  positionFilter === position
+                    ? "border-accent bg-accent text-white"
+                    : "border-border bg-surface text-ink-dim hover:border-border-bright"
+                }`}
+              >
+                {position} ({count})
+              </button>
+            );
+          })}
+        </div>
+        <Link
+          href="/team/archive"
+          className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-ink-dim transition hover:border-border-bright hover:text-ink"
         >
-          Все ({users.length})
-        </button>
-        {positions.map((position) => {
-          const count = users.filter((u) => positionOf(u) === position).length;
-          return (
-            <button
-              key={position}
-              onClick={() => setPositionFilter(position)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                positionFilter === position
-                  ? "border-accent bg-accent text-white"
-                  : "border-border bg-surface text-ink-dim hover:border-border-bright"
-              }`}
-            >
-              {position} ({count})
-            </button>
-          );
-        })}
+          <Archive size={14} />
+          Архив сотрудников
+        </Link>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -377,6 +398,15 @@ export default function TeamPage() {
                   {u.is_active ? "Отключить" : "Включить"}
                 </button>
               </div>
+              {!isFounder && (
+                <button
+                  onClick={() => archiveUser(u.id)}
+                  className="flex items-center justify-center gap-2 rounded-lg border border-danger/30 px-3 py-2 text-xs font-semibold text-danger hover:bg-danger-soft"
+                >
+                  <Archive size={14} />
+                  Архивировать
+                </button>
+              )}
             </article>
           );
         })}
