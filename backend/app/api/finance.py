@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.core.deps import CurrentUser, require_founder, require_staff_role
+from app.core.deps import CurrentUser, require_finance_access, require_staff_role
 from app.db.events import record_event
 from app.db.pool import get_pool
 from app.db.visibility import require_project_visible
@@ -207,12 +207,12 @@ async def compute_finance_summary(pool) -> dict:
 
 
 @router.get("/finance/summary")
-async def finance_summary(user: CurrentUser = Depends(require_founder)) -> dict:
+async def finance_summary(user: CurrentUser = Depends(require_finance_access)) -> dict:
     return await compute_finance_summary(get_pool())
 
 
 @router.get("/finance/cash-flow")
-async def cash_flow(user: CurrentUser = Depends(require_founder)) -> dict:
+async def cash_flow(user: CurrentUser = Depends(require_finance_access)) -> dict:
     """Post-MVP finance expansion (2026-07-08, founder-requested "фарш"):
     monthly invoiced/paid/expenses/net cash flow, plus an aging breakdown of
     currently outstanding (unpaid, past-due) invoices — both computed
@@ -274,7 +274,7 @@ async def cash_flow(user: CurrentUser = Depends(require_founder)) -> dict:
 
 
 @router.get("/finance/expenses-by-category")
-async def expenses_by_category(user: CurrentUser = Depends(require_founder)) -> list[dict]:
+async def expenses_by_category(user: CurrentUser = Depends(require_finance_access)) -> list[dict]:
     pool = get_pool()
     rows = await pool.fetch(
         """

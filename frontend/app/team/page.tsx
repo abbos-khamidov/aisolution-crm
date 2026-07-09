@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import AppShell from "@/components/AppShell";
@@ -16,6 +16,9 @@ interface User {
   role: string;
   role_title: string | null;
   is_active: boolean;
+  can_view_all_leads: boolean;
+  can_view_analytics: boolean;
+  can_view_finance: boolean;
 }
 
 interface UserDraft {
@@ -26,6 +29,9 @@ interface UserDraft {
   role: string;
   role_title: string;
   password: string;
+  can_view_all_leads: boolean;
+  can_view_analytics: boolean;
+  can_view_finance: boolean;
 }
 
 const ROLES = ["manager", "developer", "student"] as const;
@@ -35,6 +41,11 @@ const ROLE_LABELS: Record<string, string> = {
   developer: "Разработчик",
   student: "Ученик",
 };
+const ALL_POSITIONS = "__all__";
+
+function positionOf(user: Pick<User, "role" | "role_title">): string {
+  return user.role_title?.trim() || ROLE_LABELS[user.role] || user.role;
+}
 
 export default function TeamPage() {
   const router = useRouter();
@@ -43,6 +54,7 @@ export default function TeamPage() {
   const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<number, boolean>>({});
   const [error, setError] = useState<string | null>(null);
+  const [positionFilter, setPositionFilter] = useState(ALL_POSITIONS);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -79,6 +91,9 @@ export default function TeamPage() {
             role: user.role,
             role_title: user.role_title ?? "",
             password: "",
+            can_view_all_leads: user.can_view_all_leads,
+            can_view_analytics: user.can_view_analytics,
+            can_view_finance: user.can_view_finance,
           },
         ])
       )
@@ -89,6 +104,19 @@ export default function TeamPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const positions = useMemo(
+    () => Array.from(new Set(users.map(positionOf))).sort((a, b) => a.localeCompare(b, "ru")),
+    [users]
+  );
+
+  const visibleUsers = useMemo(
+    () =>
+      positionFilter === ALL_POSITIONS
+        ? users
+        : users.filter((u) => positionOf(u) === positionFilter),
+    [users, positionFilter]
+  );
 
   async function createUser() {
     setError(null);
@@ -142,6 +170,9 @@ export default function TeamPage() {
       telegram_id: draft.telegram_id ? Number(draft.telegram_id) : null,
       role: draft.role,
       role_title: draft.role_title || null,
+      can_view_all_leads: draft.can_view_all_leads,
+      can_view_analytics: draft.can_view_analytics,
+      can_view_finance: draft.can_view_finance,
       ...(draft.password ? { password: draft.password } : {}),
     });
   }
@@ -182,78 +213,116 @@ export default function TeamPage() {
         <button onClick={createUser} className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-white">Добавить</button>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-border bg-white">
-        <table className="min-w-[1180px] w-full text-sm">
-          <thead className="bg-surface text-left text-xs uppercase text-ink-faint">
-            <tr>
-              <th className="px-4 py-3">Имя</th>
-              <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3">Телефон</th>
-              <th className="px-4 py-3">Telegram ID</th>
-              <th className="px-4 py-3">Доступ</th>
-              <th className="px-4 py-3">Должность</th>
-              <th className="px-4 py-3">Новый пароль</th>
-              <th className="px-4 py-3">Статус</th>
-              <th className="px-4 py-3">Действия</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => {
-              const draft = drafts[u.id];
-              return (
-              <tr key={u.id} className="border-t border-border align-top">
-                <td className="px-4 py-3">
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">Должность</span>
+        <button
+          onClick={() => setPositionFilter(ALL_POSITIONS)}
+          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+            positionFilter === ALL_POSITIONS
+              ? "border-accent bg-accent text-white"
+              : "border-border bg-surface text-ink-dim hover:border-border-bright"
+          }`}
+        >
+          Все ({users.length})
+        </button>
+        {positions.map((position) => {
+          const count = users.filter((u) => positionOf(u) === position).length;
+          return (
+            <button
+              key={position}
+              onClick={() => setPositionFilter(position)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                positionFilter === position
+                  ? "border-accent bg-accent text-white"
+                  : "border-border bg-surface text-ink-dim hover:border-border-bright"
+              }`}
+            >
+              {position} ({count})
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {visibleUsers.map((u) => {
+          const draft = drafts[u.id];
+          if (!draft) return null;
+          const isFounder = u.role === "founder";
+          return (
+            <article key={u.id} className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-base font-semibold text-accent-strong">
+                    {(draft.name || "?").slice(0, 1).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-display text-sm font-semibold text-ink">{draft.name || "Без имени"}</p>
+                    <p className="text-xs text-ink-faint">{positionOf(u)}</p>
+                  </div>
+                </div>
+                <Badge label={u.is_active ? "active" : "off"} tone={u.is_active ? "success" : "danger"} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <label className="col-span-2 block">
+                  <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-ink-faint">Имя</span>
                   <input
-                    className="w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-xs font-medium text-ink"
-                    value={draft?.name ?? ""}
+                    className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-xs text-ink"
+                    value={draft.name}
                     onChange={(e) => updateDraft(u.id, { name: e.target.value })}
                   />
-                </td>
-                <td className="px-4 py-3">
+                </label>
+                <label className="col-span-2 block">
+                  <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-ink-faint">Email</span>
                   <input
-                    className="w-48 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-ink"
-                    value={draft?.email ?? ""}
+                    className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-xs text-ink"
+                    value={draft.email}
                     onChange={(e) => updateDraft(u.id, { email: e.target.value })}
                   />
-                </td>
-                <td className="px-4 py-3">
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-ink-faint">Телефон</span>
                   <input
-                    className="w-36 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-ink"
-                    value={draft?.phone ?? ""}
+                    className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-xs text-ink"
                     placeholder="+998"
+                    value={draft.phone}
                     onChange={(e) => updateDraft(u.id, { phone: e.target.value })}
                   />
-                </td>
-                <td className="px-4 py-3">
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-ink-faint">Telegram ID</span>
                   <input
-                    className="w-32 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-ink"
-                    value={draft?.telegram_id ?? ""}
+                    className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-xs text-ink"
                     inputMode="numeric"
+                    value={draft.telegram_id}
                     onChange={(e) => updateDraft(u.id, { telegram_id: e.target.value })}
                   />
-                </td>
-                <td className="px-4 py-3">
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-ink-faint">Роль</span>
                   <select
-                    className="w-32 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-ink"
-                    value={draft?.role ?? u.role}
+                    className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-xs text-ink"
+                    value={draft.role}
                     onChange={(e) => updateDraft(u.id, { role: e.target.value })}
                   >
                     {["founder", ...ROLES].map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
                   </select>
-                </td>
-                <td className="px-4 py-3">
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-ink-faint">Должность</span>
                   <input
-                    className="w-44 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-ink"
-                    value={draft?.role_title ?? ""}
-                    placeholder="Например: Head of Sales"
+                    className="w-full rounded-md border border-border bg-bg px-2 py-1.5 text-xs text-ink"
+                    placeholder="Head of Sales"
+                    value={draft.role_title}
                     onChange={(e) => updateDraft(u.id, { role_title: e.target.value })}
                   />
-                </td>
-                <td className="px-4 py-3">
-                  <div className="relative w-36">
+                </label>
+                <label className="col-span-2 block">
+                  <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-ink-faint">Новый пароль</span>
+                  <div className="relative">
                     <input
-                      className="w-full rounded-md border border-border bg-surface px-2 py-1.5 pr-8 text-xs text-ink"
-                      value={draft?.password ?? ""}
+                      className="w-full rounded-md border border-border bg-bg px-2 py-1.5 pr-8 text-xs text-ink"
+                      value={draft.password}
                       placeholder="не менять"
                       type={visiblePasswords[u.id] ? "text" : "password"}
                       onChange={(e) => updateDraft(u.id, { password: e.target.value })}
@@ -272,24 +341,68 @@ export default function TeamPage() {
                       {visiblePasswords[u.id] ? <EyeOff size={14} /> : <Eye size={14} />}
                     </button>
                   </div>
-                </td>
-                <td className="px-4 py-3"><Badge label={u.is_active ? "active" : "off"} tone={u.is_active ? "success" : "danger"} /></td>
-                <td className="px-4 py-3">
+                </label>
+              </div>
+
+              <div className="rounded-xl border border-border bg-bg p-3">
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-ink-faint">Доступ</p>
+                {isFounder ? (
+                  <p className="text-xs text-ink-dim">Founder видит всё по умолчанию</p>
+                ) : (
                   <div className="flex flex-col gap-2">
-                    <button onClick={() => saveUser(u.id)} className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white">
-                      Сохранить
-                    </button>
-                    <button onClick={() => patchUser(u.id, { is_active: !u.is_active })} className="rounded-md bg-surface-2 px-3 py-1.5 text-xs text-ink">
-                    {u.is_active ? "Отключить" : "Включить"}
-                    </button>
+                    <PermissionCheckbox
+                      label="Видит все лиды"
+                      checked={draft.can_view_all_leads}
+                      onChange={(value) => updateDraft(u.id, { can_view_all_leads: value })}
+                    />
+                    <PermissionCheckbox
+                      label="Аналитика"
+                      checked={draft.can_view_analytics}
+                      onChange={(value) => updateDraft(u.id, { can_view_analytics: value })}
+                    />
+                    <PermissionCheckbox
+                      label="Финансы"
+                      checked={draft.can_view_finance}
+                      onChange={(value) => updateDraft(u.id, { can_view_finance: value })}
+                    />
                   </div>
-                </td>
-              </tr>
-            );
-            })}
-          </tbody>
-        </table>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={() => saveUser(u.id)} className="flex-1 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-white">
+                  Сохранить
+                </button>
+                <button onClick={() => patchUser(u.id, { is_active: !u.is_active })} className="flex-1 rounded-lg bg-surface-2 px-3 py-2 text-xs text-ink">
+                  {u.is_active ? "Отключить" : "Включить"}
+                </button>
+              </div>
+            </article>
+          );
+        })}
       </div>
     </AppShell>
+  );
+}
+
+function PermissionCheckbox({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 text-xs text-ink">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 rounded border-border text-accent focus:ring-accent"
+      />
+      {label}
+    </label>
   );
 }

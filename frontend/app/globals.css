@@ -654,9 +654,14 @@ h1, h2, h3, h4, .font-display {
 .login-intro {
   position: fixed;
   inset: 0;
+  height: 100vh;
+  height: 100dvh;
   z-index: 80;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
   overflow: hidden;
   contain: layout paint style;
   background:
@@ -703,31 +708,19 @@ h1, h2, h3, h4, .font-display {
 .intro-line--two { transform: rotate(132deg) translateX(-6vw); background: linear-gradient(90deg, transparent, rgba(5,150,105,.75), transparent); }
 .intro-line--three { transform: rotate(226deg) translateX(-6vw); background: linear-gradient(90deg, transparent, rgba(245,158,11,.75), transparent); }
 
-.intro-packet {
+.intro-particle {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 18px;
-  height: 18px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
   background: #ffffff;
-  box-shadow: 0 0 0 6px rgba(11,127,232,.12), 0 0 22px rgba(11,127,232,.42);
-  animation: intro-packet 2.6s cubic-bezier(.7, 0, .22, 1) infinite;
+  box-shadow: 0 0 0 4px rgba(var(--tone), .14), 0 0 14px rgba(var(--tone), .5);
+  animation-name: intro-particle-flow;
+  animation-timing-function: cubic-bezier(.22, 1, .36, 1);
+  animation-iteration-count: infinite;
   will-change: transform, opacity;
-}
-
-.intro-packet--one { --x: -34vw; --y: -16vh; }
-.intro-packet--two {
-  --x: 32vw;
-  --y: -11vh;
-  animation-delay: .75s;
-  box-shadow: 0 0 0 6px rgba(5,150,105,.12), 0 0 22px rgba(5,150,105,.42);
-}
-.intro-packet--three {
-  --x: -18vw;
-  --y: 25vh;
-  animation-delay: 1.45s;
-  box-shadow: 0 0 0 6px rgba(245,158,11,.12), 0 0 22px rgba(245,158,11,.44);
 }
 
 .intro-core {
@@ -796,13 +789,10 @@ h1, h2, h3, h4, .font-display {
 }
 
 .intro-steps {
-  position: absolute;
-  left: 50%;
-  bottom: 76px;
+  position: relative;
   z-index: 2;
   display: flex;
   max-width: calc(100vw - 32px);
-  transform: translateX(-50%);
   align-items: center;
   justify-content: center;
   gap: 12px;
@@ -814,8 +804,12 @@ h1, h2, h3, h4, .font-display {
   font-size: 13px;
   font-weight: 800;
   box-shadow: 0 20px 60px -40px rgba(15,23,42,.5);
-  transform: translate3d(-50%, 0, 0);
   white-space: nowrap;
+}
+
+.intro-steps-arrow {
+  color: var(--accent-strong);
+  animation: intro-arrow-flow 1.6s ease-in-out infinite;
 }
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -829,7 +823,8 @@ h1, h2, h3, h4, .font-display {
   position: absolute;
   right: 24px;
   top: 24px;
-  z-index: 3;
+  z-index: 5;
+  cursor: pointer;
   border-radius: 999px;
   border: 1px solid rgba(15,23,42,.08);
   background: rgba(255,255,255,.72);
@@ -837,6 +832,15 @@ h1, h2, h3, h4, .font-display {
   color: var(--text-dim);
   font-size: 13px;
   font-weight: 800;
+  transition: background-color .15s ease, transform .15s ease;
+}
+
+.intro-skip:hover {
+  background: rgba(255,255,255,.92);
+}
+
+.intro-skip:active {
+  transform: scale(.96);
 }
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -863,11 +867,16 @@ h1, h2, h3, h4, .font-display {
   to { background-position: 220px 0, 0 220px; }
 }
 
-@keyframes intro-packet {
-  0% { transform: translate(var(--x), var(--y)) scale(.8); opacity: 0; }
-  18% { opacity: 1; }
-  70% { transform: translate(-9px, -9px) scale(1.12); opacity: 1; }
-  100% { transform: translate(-9px, -9px) scale(.25); opacity: 0; }
+@keyframes intro-particle-flow {
+  0% { transform: translate(var(--x), var(--y)) scale(.5); opacity: 0; }
+  16% { opacity: 1; }
+  78% { transform: translate(0, 0) scale(1.05); opacity: .9; }
+  100% { transform: translate(0, 0) scale(.2); opacity: 0; }
+}
+
+@keyframes intro-arrow-flow {
+  0%, 100% { transform: translateX(0); opacity: .55; }
+  50% { transform: translateX(3px); opacity: 1; }
 }
 
 @keyframes intro-progress {
@@ -883,7 +892,7 @@ h1, h2, h3, h4, .font-display {
 @media (prefers-reduced-motion: reduce) {
   .login-intro,
   .intro-map::before,
-  .intro-packet,
+  .intro-particle,
   .intro-progress,
   .intro-line,
   .radar-sweep,
@@ -901,8 +910,10 @@ h1, h2, h3, h4, .font-display {
 
 @media (max-width: 640px) {
   .login-intro {
-    place-items: start center;
-    padding: 76px 16px 128px;
+    overflow-y: auto;
+    justify-content: flex-start;
+    gap: 20px;
+    padding: 76px 16px 40px;
   }
 
   .intro-core {
@@ -929,7 +940,6 @@ h1, h2, h3, h4, .font-display {
   }
 
   .intro-steps {
-    bottom: 28px;
     flex-wrap: wrap;
     row-gap: 8px;
     border-radius: 18px;
@@ -960,9 +970,12 @@ h1, h2, h3, h4, .font-display {
     width: 74vw;
   }
 
-  .intro-packet--one { --x: -38vw; --y: -18vh; }
-  .intro-packet--two { --x: 36vw; --y: -10vh; }
-  .intro-packet--three { --x: -22vw; --y: 24vh; }
+  .intro-map {
+    /* inline --x/--y custom props (set via style attr) can't be overridden
+       from a stylesheet media query — scale the whole particle layer
+       instead so the swarm still fits a narrow viewport. */
+    transform: scale(.68);
+  }
 
   .intro-core {
     padding: 28px 22px;

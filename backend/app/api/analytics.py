@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.api.finance import compute_finance_summary
-from app.core.deps import CurrentUser, require_founder
+from app.core.deps import CurrentUser, require_analytics_access
 from app.db.pool import get_pool
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -10,7 +10,7 @@ FUNNEL_STATUSES = ("new", "contacted", "qualified", "proposal_sent", "won", "los
 
 
 @router.get("/funnel")
-async def funnel(user: CurrentUser = Depends(require_founder)) -> dict:
+async def funnel(user: CurrentUser = Depends(require_analytics_access)) -> dict:
     """Reconstructs status history purely from `events` (CRM_SPEC.md section 5:
     computed from events + aggregates, not a separate analytics table).
     `created` events imply the initial status 'new'; `status_changed` events
@@ -72,7 +72,7 @@ async def funnel(user: CurrentUser = Depends(require_founder)) -> dict:
 
 
 @router.get("/conversion-by-source")
-async def conversion_by_source(user: CurrentUser = Depends(require_founder)) -> list[dict]:
+async def conversion_by_source(user: CurrentUser = Depends(require_analytics_access)) -> list[dict]:
     pool = get_pool()
     rows = await pool.fetch(
         """
@@ -93,7 +93,7 @@ async def conversion_by_source(user: CurrentUser = Depends(require_founder)) -> 
 
 
 @router.get("/loss-reasons")
-async def loss_reasons(user: CurrentUser = Depends(require_founder)) -> list[dict]:
+async def loss_reasons(user: CurrentUser = Depends(require_analytics_access)) -> list[dict]:
     pool = get_pool()
     rows = await pool.fetch(
         """
@@ -108,12 +108,12 @@ async def loss_reasons(user: CurrentUser = Depends(require_founder)) -> list[dic
 
 
 @router.get("/revenue")
-async def revenue(user: CurrentUser = Depends(require_founder)) -> dict:
+async def revenue(user: CurrentUser = Depends(require_analytics_access)) -> dict:
     return await compute_finance_summary(get_pool())
 
 
 @router.get("/team-load")
-async def team_load(user: CurrentUser = Depends(require_founder)) -> list[dict]:
+async def team_load(user: CurrentUser = Depends(require_analytics_access)) -> list[dict]:
     pool = get_pool()
     rows = await pool.fetch(
         """
@@ -134,7 +134,7 @@ async def team_load(user: CurrentUser = Depends(require_founder)) -> list[dict]:
 
 
 @router.get("/manager-performance")
-async def manager_performance(user: CurrentUser = Depends(require_founder)) -> list[dict]:
+async def manager_performance(user: CurrentUser = Depends(require_analytics_access)) -> list[dict]:
     """Post-MVP analytics expansion (2026-07-08, founder-requested "фарш"):
     per-manager leaderboard — leads owned/won, conversion, revenue collected
     on their projects, and average time to first response. Revenue sums raw
@@ -187,7 +187,9 @@ async def manager_performance(user: CurrentUser = Depends(require_founder)) -> l
 
 
 @router.get("/leads-by-channel-over-time")
-async def leads_by_channel_over_time(user: CurrentUser = Depends(require_founder)) -> list[dict]:
+async def leads_by_channel_over_time(
+    user: CurrentUser = Depends(require_analytics_access),
+) -> list[dict]:
     """Post-MVP analytics expansion (2026-07-08): monthly lead volume per
     source, for a channel-comparison trend chart.
     """
@@ -208,7 +210,9 @@ async def leads_by_channel_over_time(user: CurrentUser = Depends(require_founder
 
 
 @router.get("/stale-leads")
-async def stale_leads(days: int = 7, user: CurrentUser = Depends(require_founder)) -> list[dict]:
+async def stale_leads(
+    days: int = 7, user: CurrentUser = Depends(require_analytics_access)
+) -> list[dict]:
     """Leads with no `events` activity for > `days` (default 7, CRM_SPEC.md
     section 5: "лиды без activity > N дней"), excluding closed leads.
     """

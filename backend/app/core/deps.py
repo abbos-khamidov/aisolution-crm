@@ -15,6 +15,9 @@ _bearer = HTTPBearer()
 class CurrentUser:
     id: int
     role: str
+    can_view_all_leads: bool = False
+    can_view_analytics: bool = False
+    can_view_finance: bool = False
 
 
 async def get_current_user(
@@ -33,13 +36,22 @@ async def get_current_user(
     user_id = int(payload["sub"])
     pool = get_pool()
     row = await pool.fetchrow(
-        "SELECT id, role FROM users WHERE id = $1 AND is_active AND deleted_at IS NULL",
+        """
+        SELECT id, role, can_view_all_leads, can_view_analytics, can_view_finance
+        FROM users WHERE id = $1 AND is_active AND deleted_at IS NULL
+        """,
         user_id,
     )
     if row is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-    return CurrentUser(id=row["id"], role=row["role"])
+    return CurrentUser(
+        id=row["id"],
+        role=row["role"],
+        can_view_all_leads=row["can_view_all_leads"],
+        can_view_analytics=row["can_view_analytics"],
+        can_view_finance=row["can_view_finance"],
+    )
 
 
 async def require_founder(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
@@ -70,6 +82,25 @@ async def require_sales_role(user: CurrentUser = Depends(get_current_user)) -> C
             status_code=status.HTTP_403_FORBIDDEN, detail="Only founder or manager can access leads"
         )
     return user
+
+
+async def require_analytics_access(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    """Analytics is founder-only by default; founder can grant individual
+    manager/developer accounts read access via users.can_view_analytics
+    (checkbox on the team page), without opening up full RBAC.
+    """
+    if user.role == "founder" or (user.role != "student" and user.can_view_analytics):
+        return user
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No analytics access")
+
+
+async def require_finance_access(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    """Same pattern as require_analytics_access, for the founder-only finance
+    overview endpoints (summary/cash-flow/expenses-by-category).
+    """
+    if user.role == "founder" or (user.role != "student" and user.can_view_finance):
+        return user
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No finance access")
 
 
 async def verify_internal_secret(x_internal_secret: str = Header(...)) -> None:

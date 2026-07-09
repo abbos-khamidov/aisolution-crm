@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Radar, Sparkles } from "lucide-react";
@@ -14,6 +14,28 @@ const STAT_CHIPS = [
   { label: "02", value: "CRM назначает владельца" },
   { label: "03", value: "сумма летит в прогноз" },
 ];
+
+const INTRO_STEPS = ["Сайт", "Лид", "КП", "Проект", "Финансы"];
+
+// Deterministic swarm (no Math.random — must render identically on server
+// and client, or hydration breaks event handlers on the whole overlay,
+// including the skip button). Phyllotaxis spacing (golden angle) gives an
+// organic, non-overlapping scatter for a few dozen points cheaply.
+const INTRO_PARTICLE_COUNT = 34;
+const GOLDEN_ANGLE = 137.508;
+const INTRO_TONES = ["11,127,232", "5,150,105", "245,158,11"];
+const INTRO_PARTICLES = Array.from({ length: INTRO_PARTICLE_COUNT }, (_, i) => {
+  const angle = (i * GOLDEN_ANGLE * Math.PI) / 180;
+  const radius = 14 + ((i * 7) % 28);
+  return {
+    id: i,
+    x: Math.cos(angle) * radius,
+    y: Math.sin(angle) * radius * 0.6,
+    tone: INTRO_TONES[i % INTRO_TONES.length],
+    delay: (i * 0.11) % 3.4,
+    dur: 3.2 + (i % 5) * 0.24,
+  };
+});
 
 function redirectForRole(role: string): string {
   return role === "student" ? "/my-tasks" : "/dashboard";
@@ -256,9 +278,21 @@ function LoginIntro({ onDone }: { onDone: () => void }) {
         <span className="intro-line intro-line--one" />
         <span className="intro-line intro-line--two" />
         <span className="intro-line intro-line--three" />
-        <span className="intro-packet intro-packet--one" />
-        <span className="intro-packet intro-packet--two" />
-        <span className="intro-packet intro-packet--three" />
+        {INTRO_PARTICLES.map((p) => (
+          <span
+            key={p.id}
+            className="intro-particle"
+            style={
+              {
+                "--x": `${p.x}vw`,
+                "--y": `${p.y}vh`,
+                "--tone": p.tone,
+                animationDelay: `${p.delay}s`,
+                animationDuration: `${p.dur}s`,
+              } as React.CSSProperties
+            }
+          />
+        ))}
       </div>
       <div className="intro-core">
         <Image src="/logo-light.png" alt="AI Solution" width={96} height={96} className="h-20 w-20 object-contain" priority />
@@ -276,15 +310,18 @@ function LoginIntro({ onDone }: { onDone: () => void }) {
         </p>
       </div>
       <div className="intro-steps">
-        <span>Сайт</span>
-        <ArrowRight size={16} />
-        <span>Лид</span>
-        <ArrowRight size={16} />
-        <span>КП</span>
-        <ArrowRight size={16} />
-        <span>Проект</span>
-        <ArrowRight size={16} />
-        <span>Финансы</span>
+        {INTRO_STEPS.map((label, i) => (
+          <Fragment key={label}>
+            <span>{label}</span>
+            {i < INTRO_STEPS.length - 1 && (
+              <ArrowRight
+                size={16}
+                className="intro-steps-arrow"
+                style={{ animationDelay: `${i * 0.18}s` }}
+              />
+            )}
+          </Fragment>
+        ))}
       </div>
       <button type="button" onClick={onDone} className="intro-skip">
         Пропустить

@@ -450,10 +450,11 @@ async def list_leads(
         params.append(owner_id)
         conditions.append(f"owner_id = ${len(params)}")
 
-    if user.role != "founder":
+    if user.role != "founder" and not user.can_view_all_leads:
         # manager: unclaimed queue + own leads only (CRM_SPEC.md section 6) —
         # applied as an extra AND, so a manager can't probe other owners'
-        # leads via ?owner_id= either.
+        # leads via ?owner_id= either. Founder can lift this per-account via
+        # users.can_view_all_leads (team page checkbox).
         params.append(user.id)
         conditions.append(f"(owner_id IS NULL OR owner_id = ${len(params)})")
 

@@ -11,7 +11,8 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 USER_FIELDS = """
     id, name, phone, email, telegram_id, telegram_username, photo_url, quote,
-    role, role_title, is_active, created_at
+    role, role_title, is_active, created_at,
+    can_view_all_leads, can_view_analytics, can_view_finance
 """
 Role = Literal["founder", "manager", "developer", "student"]
 
@@ -27,6 +28,9 @@ class UserIn(BaseModel):
     quote: str | None = None
     role: Role
     role_title: str | None = None
+    can_view_all_leads: bool = False
+    can_view_analytics: bool = False
+    can_view_finance: bool = False
 
 
 class UserPatch(BaseModel):
@@ -41,6 +45,9 @@ class UserPatch(BaseModel):
     role: Role | None = None
     role_title: str | None = None
     is_active: bool | None = None
+    can_view_all_leads: bool | None = None
+    can_view_analytics: bool | None = None
+    can_view_finance: bool | None = None
 
 
 class ProfilePatch(BaseModel):
@@ -117,8 +124,9 @@ async def create_user(body: UserIn, user: CurrentUser = Depends(require_founder)
             f"""
             INSERT INTO users
                 (name, phone, email, password_hash, telegram_id,
-                 telegram_username, photo_url, quote, role, role_title)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                 telegram_username, photo_url, quote, role, role_title,
+                 can_view_all_leads, can_view_analytics, can_view_finance)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             RETURNING {USER_FIELDS}
             """,
             body.name,
@@ -131,6 +139,9 @@ async def create_user(body: UserIn, user: CurrentUser = Depends(require_founder)
             body.quote,
             body.role,
             body.role_title,
+            body.can_view_all_leads,
+            body.can_view_analytics,
+            body.can_view_finance,
         )
     except Exception as err:
         if "users_email_key" in str(err) or "users_telegram_id_key" in str(err):
@@ -160,8 +171,11 @@ async def patch_user(
             quote = COALESCE($8, quote),
             role = COALESCE($9, role),
             role_title = COALESCE($10, role_title),
-            is_active = COALESCE($11, is_active)
-        WHERE id = $12 AND deleted_at IS NULL
+            is_active = COALESCE($11, is_active),
+            can_view_all_leads = COALESCE($12, can_view_all_leads),
+            can_view_analytics = COALESCE($13, can_view_analytics),
+            can_view_finance = COALESCE($14, can_view_finance)
+        WHERE id = $15 AND deleted_at IS NULL
         RETURNING {USER_FIELDS}
         """,
         body.name,
@@ -175,6 +189,9 @@ async def patch_user(
         body.role,
         body.role_title,
         body.is_active,
+        body.can_view_all_leads,
+        body.can_view_analytics,
+        body.can_view_finance,
         user_id,
     )
     if row is None:
