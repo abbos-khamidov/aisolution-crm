@@ -968,54 +968,74 @@ h1, h2, h3, h4, .font-display {
   }
 
   .login-intro {
-    overflow-y: auto;
-    justify-content: flex-start;
-    gap: 20px;
-    padding: 76px 16px 40px;
+    overflow: hidden;
+    justify-content: center;
+    gap: 14px;
+    padding: 64px 16px 28px;
   }
 
   .intro-core {
     width: 100%;
     max-width: 420px;
-    padding: 26px 20px;
+    padding: 22px 18px;
     border-radius: 26px;
   }
 
+  .intro-core img {
+    width: 56px;
+    height: 56px;
+  }
+
   .intro-core h2 {
-    font-size: clamp(28px, 10vw, 42px);
+    font-size: clamp(28px, 9.6vw, 38px);
     line-height: 1.08;
   }
 
   .intro-copy {
-    margin-top: 14px;
+    margin-top: 12px;
     font-size: 14px;
     line-height: 1.55;
   }
 
   .intro-kicker {
-    margin-top: 14px;
+    margin-top: 12px;
+    margin-bottom: 10px;
+    padding: 7px 10px;
     font-size: 11px;
   }
 
   .intro-steps {
-    flex-wrap: wrap;
-    row-gap: 8px;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    width: min(100%, 358px);
+    gap: 0;
     border-radius: 18px;
-    padding: 10px 12px;
-    font-size: 12px;
+    padding: 10px;
+    font-size: 11px;
     white-space: normal;
-    overflow: visible;
+    overflow: hidden;
+  }
+
+  .intro-steps span {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px;
+    text-align: center;
+    line-height: 1.1;
   }
 
   .intro-steps svg {
-    width: 14px;
-    height: 14px;
-    flex: 0 0 auto;
+    display: none;
   }
 
   .intro-skip {
-    right: 16px;
-    top: 16px;
+    position: fixed;
+    right: 14px;
+    top: 14px;
+    padding: 9px 12px;
+    background: rgba(255,255,255,.9);
   }
 }
 
