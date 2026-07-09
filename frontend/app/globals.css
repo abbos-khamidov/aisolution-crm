@@ -975,8 +975,9 @@ h1, h2, h3, h4, .font-display {
   }
 
   .intro-core {
-    width: 100%;
-    max-width: 420px;
+    box-sizing: border-box;
+    width: calc(100vw - 32px);
+    max-width: 358px;
     padding: 22px 18px;
     border-radius: 26px;
   }
@@ -987,7 +988,7 @@ h1, h2, h3, h4, .font-display {
   }
 
   .intro-core h2 {
-    font-size: clamp(28px, 9.6vw, 38px);
+    font-size: clamp(27px, 8.8vw, 34px);
     line-height: 1.08;
   }
 
@@ -1007,7 +1008,9 @@ h1, h2, h3, h4, .font-display {
   .intro-steps {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    width: min(100%, 358px);
+    box-sizing: border-box;
+    width: calc(100vw - 32px);
+    max-width: 358px;
     gap: 0;
     border-radius: 18px;
     padding: 10px;
@@ -1034,12 +1037,13 @@ h1, h2, h3, h4, .font-display {
     position: fixed;
     right: 14px;
     top: 14px;
+    max-width: calc(100vw - 28px);
     padding: 9px 12px;
     background: rgba(255,255,255,.9);
   }
 }
 
-@media (max-width: 720px) {
+@media (min-width: 641px) and (max-width: 720px) {
   .intro-map::before {
     animation: none;
     opacity: .55;
