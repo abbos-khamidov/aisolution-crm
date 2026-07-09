@@ -24,6 +24,7 @@ import { getGreeting } from "@/lib/greeting";
 interface Lead {
   id: number;
   owner_id: number | null;
+  status: string;
 }
 interface Project {
   id: number;
@@ -117,7 +118,10 @@ export default function DashboardPage() {
     })();
   }, []);
 
+  const totalLeads = leads?.length ?? 0;
+  const activeLeads = leads?.filter((l) => !["won", "lost"].includes(l.status)).length ?? 0;
   const unclaimedLeads = leads?.filter((l) => l.owner_id === null).length ?? 0;
+  const assignedLeads = leads?.filter((l) => l.owner_id !== null).length ?? 0;
   const myLeads = leads?.filter((l) => l.owner_id === myId).length ?? 0;
   const activeProjects = projects?.filter((p) => ACTIVE_STAGES.has(p.stage)).length ?? 0;
   const burningDeadlines = projects?.filter((p) => p.deadline_status === "red").length ?? 0;
@@ -125,10 +129,10 @@ export default function DashboardPage() {
 
   const actions = QUICK_ACTIONS.filter((a) => role && a.roles.includes(role));
   const teamOnline = users.filter((user) => user.is_active).length;
-  const inboxMood =
-    unclaimedLeads > 0
-      ? "Есть свежие заявки. Лучше взять в работу сейчас."
-      : "Очередь чистая. Можно двигать проекты и задачи.";
+  const leadMood =
+    totalLeads > 0
+      ? `${assignedLeads} назначено, ${unclaimedLeads} без ответственного.`
+      : "Пока нет лидов в рабочем списке.";
   const deadlineMood =
     burningDeadlines > 0
       ? "Есть красные дедлайны. Сначала тушим их."
@@ -177,7 +181,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="relative grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-            <PriorityCard icon={Inbox} label="Входящие" value={unclaimedLeads} text={inboxMood} tone={unclaimedLeads > 0 ? "spark" : "success"} href="/leads" />
+            <PriorityCard icon={Inbox} label="Лиды" value={activeLeads} text={leadMood} tone={activeLeads > 0 ? "spark" : "success"} href="/leads" />
             <PriorityCard icon={Flame} label="Дедлайны" value={burningDeadlines} text={deadlineMood} tone={burningDeadlines > 0 ? "danger" : "success"} href="/projects" />
             <PriorityCard icon={Clock3} label="Задачи" value={openTasks} text={taskMood} tone="accent" href="/tasks" />
           </div>
@@ -188,20 +192,28 @@ export default function DashboardPage() {
         {(role === "founder" || role === "manager") && (
           <>
             <StatCard
-              label="Лиды в очереди"
-              value={unclaimedLeads}
-              hint="ничьи — бери первым"
+              label={role === "founder" ? "Всего лидов" : "Видимые лиды"}
+              value={totalLeads}
+              hint={role === "founder" ? "все активные и закрытые" : "очередь + твои"}
               href="/leads"
-              tone={unclaimedLeads > 0 ? "spark" : "success"}
+              tone={totalLeads > 0 ? "spark" : "success"}
               delay={0}
             />
             <StatCard
-              label="Мои лиды"
-              value={myLeads}
-              hint="в работе у тебя"
+              label="Без ответственного"
+              value={unclaimedLeads}
+              hint="очередь для разбора"
+              href="/leads"
+              tone={unclaimedLeads > 0 ? "spark" : "success"}
+              delay={60}
+            />
+            <StatCard
+              label={role === "founder" ? "Назначены команде" : "Мои лиды"}
+              value={role === "founder" ? assignedLeads : myLeads}
+              hint={role === "founder" ? "уже есть owner" : "в работе у тебя"}
               href="/leads"
               tone="accent"
-              delay={60}
+              delay={120}
             />
           </>
         )}
@@ -211,7 +223,7 @@ export default function DashboardPage() {
           hint="в работе прямо сейчас"
           href="/projects"
           tone="accent"
-          delay={120}
+          delay={180}
         />
         <StatCard
           label="Дедлайны горят"
@@ -219,14 +231,14 @@ export default function DashboardPage() {
           hint="просрочены — глянь скорее"
           href="/projects"
           tone={burningDeadlines > 0 ? "danger" : "success"}
-          delay={180}
+          delay={240}
         />
         <StatCard
           label="Открытых тасков"
           value={openTasks}
           hint="ещё не done"
           tone="neutral"
-          delay={240}
+          delay={300}
         />
         {role === "founder" && revenue && (
           <StatCard
@@ -235,7 +247,7 @@ export default function DashboardPage() {
             hint="оплачено / выставлено"
             href="/finance"
             tone="success"
-            delay={300}
+            delay={360}
           />
         )}
       </div>
