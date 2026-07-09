@@ -793,6 +793,7 @@ h1, h2, h3, h4, .font-display {
   z-index: 2;
   display: flex;
   max-width: calc(100vw - 32px);
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
   gap: 12px;
@@ -807,7 +808,12 @@ h1, h2, h3, h4, .font-display {
   white-space: nowrap;
 }
 
+.intro-steps span {
+  flex: 0 0 auto;
+}
+
 .intro-steps-arrow {
+  flex: 0 0 auto;
   color: var(--accent-strong);
   animation: intro-arrow-flow 1.6s ease-in-out infinite;
 }
@@ -946,6 +952,7 @@ h1, h2, h3, h4, .font-display {
     padding: 10px 12px;
     font-size: 12px;
     white-space: normal;
+    overflow: visible;
   }
 
   .intro-steps svg {
@@ -984,9 +991,9 @@ h1, h2, h3, h4, .font-display {
   .intro-steps {
     width: calc(100vw - 28px);
     justify-content: center;
-    gap: 7px;
-    overflow: hidden;
-    font-size: 11px;
+    gap: 8px 10px;
+    overflow: visible;
+    font-size: 12px;
   }
 }
 

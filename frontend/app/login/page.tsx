@@ -52,11 +52,23 @@ export default function LoginPage() {
 
   const [deepLink, setDeepLink] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const introTimerRef = useRef<number | null>(null);
+
+  function dismissIntro() {
+    if (introTimerRef.current) {
+      window.clearTimeout(introTimerRef.current);
+      introTimerRef.current = null;
+    }
+    setShowIntro(false);
+  }
 
   useEffect(() => {
-    const introTimer = window.setTimeout(() => setShowIntro(false), 10000);
+    introTimerRef.current = window.setTimeout(() => {
+      introTimerRef.current = null;
+      setShowIntro(false);
+    }, 10000);
     return () => {
-      window.clearTimeout(introTimer);
+      if (introTimerRef.current) window.clearTimeout(introTimerRef.current);
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
@@ -114,7 +126,7 @@ export default function LoginPage() {
 
   return (
     <main className={`relative min-h-screen overflow-hidden ${showIntro ? "login-has-intro" : ""}`}>
-      {showIntro && <LoginIntro onDone={() => setShowIntro(false)} />}
+      {showIntro && <LoginIntro onDone={dismissIntro} />}
       <div className="atmosphere" />
       <div className="grain" />
       <div className="login-route-bg" aria-hidden="true" />
@@ -272,6 +284,12 @@ export default function LoginPage() {
 }
 
 function LoginIntro({ onDone }: { onDone: () => void }) {
+  function handleSkip(e: React.MouseEvent<HTMLButtonElement> | React.PointerEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    onDone();
+  }
+
   return (
     <section className="login-intro">
       <div className="intro-map" aria-hidden="true">
@@ -323,7 +341,12 @@ function LoginIntro({ onDone }: { onDone: () => void }) {
           </Fragment>
         ))}
       </div>
-      <button type="button" onClick={onDone} className="intro-skip">
+      <button
+        type="button"
+        onPointerDown={handleSkip}
+        onClick={handleSkip}
+        className="intro-skip"
+      >
         Пропустить
       </button>
       <div className="intro-progress" />
