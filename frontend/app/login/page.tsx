@@ -99,6 +99,10 @@ export default function LoginPage() {
   async function startTelegramLogin() {
     setError(null);
     const res = await fetch(`${API_URL}/auth/telegram/start`, { method: "POST" });
+    if (!res.ok) {
+      setError("Не получилось начать вход через Telegram. Попробуй ещё раз.");
+      return;
+    }
     const data = await res.json();
     setDeepLink(data.deep_link);
 
@@ -107,6 +111,12 @@ export default function LoginPage() {
       if (pollRes.status === 410) {
         clearInterval(pollRef.current!);
         setError("Ссылка протухла. Давай ещё раз?");
+        setDeepLink(null);
+        return;
+      }
+      if (!pollRes.ok) {
+        clearInterval(pollRef.current!);
+        setError("Telegram-вход прервался. Запусти вход ещё раз.");
         setDeepLink(null);
         return;
       }
@@ -125,13 +135,13 @@ export default function LoginPage() {
   }
 
   return (
-    <main className={`relative min-h-screen overflow-hidden ${showIntro ? "login-has-intro" : ""}`}>
+    <main className={`relative h-screen h-dvh overflow-hidden ${showIntro ? "login-has-intro" : ""}`}>
       {showIntro && <LoginIntro onDone={dismissIntro} />}
       <div className="atmosphere" />
       <div className="grain" />
       <div className="login-route-bg" aria-hidden="true" />
 
-      <div className="relative z-10 mx-auto grid min-h-screen max-w-6xl items-center gap-10 px-6 py-16 lg:grid-cols-[1fr_390px] lg:gap-20">
+      <div className="relative z-10 mx-auto grid h-screen h-dvh max-w-6xl items-center gap-8 overflow-hidden px-6 py-8 lg:grid-cols-[1fr_390px] lg:gap-20">
         <div className="rise-in max-w-xl" style={{ animationDelay: "0ms" }}>
           <div className="mb-6 flex items-center gap-4">
             <Image
@@ -246,7 +256,7 @@ export default function LoginPage() {
 
           <div className="my-6 flex items-center gap-3 text-[11px] uppercase tracking-wider text-ink-faint">
             <div className="h-px flex-1 bg-border" />
-            или для студентов
+            или через Telegram
             <div className="h-px flex-1 bg-border" />
           </div>
 
@@ -284,7 +294,12 @@ export default function LoginPage() {
 }
 
 function LoginIntro({ onDone }: { onDone: () => void }) {
-  function handleSkip(e: React.MouseEvent<HTMLButtonElement> | React.PointerEvent<HTMLButtonElement>) {
+  function handleSkip(
+    e:
+      | React.MouseEvent<HTMLButtonElement>
+      | React.PointerEvent<HTMLButtonElement>
+      | React.TouchEvent<HTMLButtonElement>
+  ) {
     e.preventDefault();
     e.stopPropagation();
     onDone();
@@ -344,6 +359,8 @@ function LoginIntro({ onDone }: { onDone: () => void }) {
       <button
         type="button"
         onPointerDown={handleSkip}
+        onMouseDown={handleSkip}
+        onTouchStart={handleSkip}
         onClick={handleSkip}
         className="intro-skip"
       >

@@ -4,14 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  BellRing,
-  BriefcaseBusiness,
-  CheckCircle2,
   Clock3,
   Flame,
   Inbox,
   Rocket,
-  ShieldCheck,
+  Settings2,
   Sparkles,
   X,
 } from "lucide-react";
@@ -57,6 +54,7 @@ const ACTIVE_STAGES = new Set([
 ]);
 
 const QUICK_ACTIONS = [
+  { href: "/dashboard/start", label: "Как работать с лидами", hint: "инструкция по разбору и статусам", roles: ["founder", "manager", "developer"] },
   { href: "/leads", label: "Разобрать лиды", hint: "самые свежие сверху", roles: ["founder", "manager"] },
   { href: "/projects", label: "Открыть проекты", hint: "КП, новости, команда", roles: ["founder", "manager", "developer"] },
   { href: "/files", label: "Согласовать файлы", hint: "то, что ждёт founder", roles: ["founder"] },
@@ -70,6 +68,8 @@ const ROLE_LABELS: Record<string, string> = {
   student: "Student",
 };
 
+const DEFAULT_WIDGETS = ["total", "queue", "assigned", "projects", "deadlines", "tasks", "revenue"];
+
 export default function DashboardPage() {
   const [role, setRole] = useState<string | null>(null);
   const [myId, setMyId] = useState<number | null>(null);
@@ -79,9 +79,19 @@ export default function DashboardPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [revenue, setRevenue] = useState<{ invoiced: number; paid: number } | null>(null);
+  const [widgetSettingsOpen, setWidgetSettingsOpen] = useState(false);
+  const [visibleWidgets, setVisibleWidgets] = useState<string[]>(DEFAULT_WIDGETS);
   const greeting = useMemo(() => getGreeting(), []);
 
   useEffect(() => {
+    const savedWidgets = window.localStorage.getItem("dashboard_widgets");
+    if (savedWidgets) {
+      try {
+        setVisibleWidgets(JSON.parse(savedWidgets));
+      } catch {
+        setVisibleWidgets(DEFAULT_WIDGETS);
+      }
+    }
     const token = getToken();
     const payload = token ? decodeJwt(token) : null;
     setRole(payload?.role ?? null);
@@ -142,6 +152,20 @@ export default function DashboardPage() {
       ? "Открытые задачи ждут владельца и следующий шаг."
       : "Задачи закрыты. Хороший момент обновить проекты.";
 
+  function toggleWidget(key: string) {
+    setVisibleWidgets((current) => {
+      const next = current.includes(key)
+        ? current.filter((item) => item !== key)
+        : [...current, key];
+      window.localStorage.setItem("dashboard_widgets", JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function widgetVisible(key: string) {
+    return visibleWidgets.includes(key);
+  }
+
   return (
     <AppShell eyebrow="Aisolution CRM" title="Рабочий центр">
       <section className="rise-in mb-6 overflow-hidden rounded-2xl border border-border bg-white/84 shadow-glow backdrop-blur-xl" style={{ animationDelay: "60ms" }}>
@@ -166,10 +190,10 @@ export default function DashboardPage() {
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
-                href={(role === "founder" || role === "manager") ? "/leads" : "/projects"}
+                href="/dashboard/start"
                 className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-strong active:scale-[0.98]"
               >
-                Открыть главное
+                Быстрый старт
                 <ArrowRight size={16} />
               </Link>
               <Link
@@ -188,9 +212,49 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      <section className="mt-6 rounded-2xl border border-border bg-surface p-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-ink">Виджеты</h2>
+            <p className="text-sm text-ink-dim">Оставь только то, чем реально пользуешься.</p>
+          </div>
+          <button
+            onClick={() => setWidgetSettingsOpen((value) => !value)}
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-bg px-3 py-2 text-sm font-semibold text-ink"
+          >
+            <Settings2 size={16} />
+            Настроить
+          </button>
+        </div>
+        {widgetSettingsOpen && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {[
+              ["total", "Всего лидов"],
+              ["queue", "Без owner"],
+              ["assigned", role === "founder" ? "Назначены" : "Мои лиды"],
+              ["projects", "Проекты"],
+              ["deadlines", "Дедлайны"],
+              ["tasks", "Таски"],
+              ["revenue", "Выручка"],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => toggleWidget(key)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                  widgetVisible(key)
+                    ? "border-accent bg-accent text-white"
+                    : "border-border bg-bg text-ink-dim"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {(role === "founder" || role === "manager") && (
           <>
+            {widgetVisible("total") && (
             <StatCard
               label={role === "founder" ? "Всего лидов" : "Видимые лиды"}
               value={totalLeads}
@@ -199,6 +263,8 @@ export default function DashboardPage() {
               tone={totalLeads > 0 ? "spark" : "success"}
               delay={0}
             />
+            )}
+            {widgetVisible("queue") && (
             <StatCard
               label="Без ответственного"
               value={unclaimedLeads}
@@ -207,6 +273,8 @@ export default function DashboardPage() {
               tone={unclaimedLeads > 0 ? "spark" : "success"}
               delay={60}
             />
+            )}
+            {widgetVisible("assigned") && (
             <StatCard
               label={role === "founder" ? "Назначены команде" : "Мои лиды"}
               value={role === "founder" ? assignedLeads : myLeads}
@@ -215,8 +283,10 @@ export default function DashboardPage() {
               tone="accent"
               delay={120}
             />
+            )}
           </>
         )}
+        {widgetVisible("projects") && (
         <StatCard
           label="Активные проекты"
           value={activeProjects}
@@ -225,6 +295,8 @@ export default function DashboardPage() {
           tone="accent"
           delay={180}
         />
+        )}
+        {widgetVisible("deadlines") && (
         <StatCard
           label="Дедлайны горят"
           value={burningDeadlines}
@@ -233,6 +305,8 @@ export default function DashboardPage() {
           tone={burningDeadlines > 0 ? "danger" : "success"}
           delay={240}
         />
+        )}
+        {widgetVisible("tasks") && (
         <StatCard
           label="Открытых тасков"
           value={openTasks}
@@ -240,7 +314,8 @@ export default function DashboardPage() {
           tone="neutral"
           delay={300}
         />
-        {role === "founder" && revenue && (
+        )}
+        {role === "founder" && revenue && widgetVisible("revenue") && (
           <StatCard
             label="Выручка за месяц"
             value={`${revenue.paid.toLocaleString("ru-RU")} / ${revenue.invoiced.toLocaleString("ru-RU")}`}
@@ -250,7 +325,8 @@ export default function DashboardPage() {
             delay={360}
           />
         )}
-      </div>
+        </div>
+      </section>
 
       {actions.length > 0 && (
         <section className="rise-in mt-8 grid gap-4 lg:grid-cols-[0.8fr_1.2fr]" style={{ animationDelay: "360ms" }}>
@@ -280,12 +356,6 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
-
-      <section className="rise-in mt-8 grid gap-4 lg:grid-cols-3" style={{ animationDelay: "390ms" }}>
-        <SignalCard icon={ShieldCheck} title="Контроль" text="У каждого лида должен быть владелец, следующее действие и понятная стадия." />
-        <SignalCard icon={BriefcaseBusiness} title="Проекты" text="КП, новости, файлы и участники живут в карточке компании, а не в чатах." />
-        <SignalCard icon={BellRing} title="Ритм" text="Система подсказывает, где нужна реакция: лиды, дедлайны, задачи, согласования." />
-      </section>
 
       {users.length > 0 && (
         <section className="rise-in mt-10" style={{ animationDelay: "420ms" }}>
@@ -410,27 +480,5 @@ function PriorityCard({
       <p className="mt-3 text-sm font-semibold text-ink">{label}</p>
       <p className="mt-1 text-xs leading-5 text-ink-dim">{text}</p>
     </Link>
-  );
-}
-
-function SignalCard({
-  icon: Icon,
-  title,
-  text,
-}: {
-  icon: typeof CheckCircle2;
-  title: string;
-  text: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-white p-5 shadow-sm">
-      <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent-strong">
-          <Icon size={18} />
-        </span>
-        <h3 className="font-display text-base font-semibold text-ink">{title}</h3>
-      </div>
-      <p className="mt-3 text-sm leading-6 text-ink-dim">{text}</p>
-    </div>
   );
 }

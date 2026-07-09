@@ -53,6 +53,25 @@ h1, h2, h3, h4, .font-display {
   font-feature-settings: "tnum";
 }
 
+.field {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  padding: 0 12px;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+
+.field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: #fff;
+}
+
 /* Ambient backdrop: soft drifting radial mesh + faint grain — same idea as
    the website's --gradient-mesh (low-opacity blue radials on off-white),
    not the bold glowing blobs the old dark theme used, which would look
@@ -271,6 +290,32 @@ h1, h2, h3, h4, .font-display {
   background: linear-gradient(90deg, #0b7fe8, #22c55e, #f59e0b);
   box-shadow: 0 0 20px rgba(11, 127, 232, 0.35);
   transition: width 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.profile-hero {
+  background:
+    radial-gradient(circle at 18% 12%, rgba(11, 127, 232, .16), transparent 30%),
+    radial-gradient(circle at 84% 20%, rgba(245, 158, 11, .12), transparent 28%),
+    linear-gradient(145deg, rgba(255,255,255,.96), rgba(241,245,249,.82));
+}
+
+.nav-brand-signal {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(11, 127, 232, .14);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.94), rgba(232,244,255,.86)),
+    radial-gradient(circle at 90% 10%, rgba(245, 158, 11, .18), transparent 34%);
+}
+
+.nav-brand-signal::after {
+  content: "";
+  position: absolute;
+  inset: auto 10px 8px 54px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--success), var(--spark));
+  opacity: .85;
 }
 
 .login-route-bg {
@@ -656,7 +701,7 @@ h1, h2, h3, h4, .font-display {
   inset: 0;
   height: 100vh;
   height: 100dvh;
-  z-index: 80;
+  z-index: 100;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -829,7 +874,9 @@ h1, h2, h3, h4, .font-display {
   position: absolute;
   right: 24px;
   top: 24px;
-  z-index: 5;
+  z-index: 30;
+  pointer-events: auto;
+  touch-action: manipulation;
   cursor: pointer;
   border-radius: 999px;
   border: 1px solid rgba(15,23,42,.08);
@@ -915,6 +962,11 @@ h1, h2, h3, h4, .font-display {
 }
 
 @media (max-width: 640px) {
+  main:has(.login-route-bg) {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
   .login-intro {
     overflow-y: auto;
     justify-content: flex-start;
@@ -1346,4 +1398,165 @@ h1, h2, h3, h4, .font-display {
   .text-balance {
     text-wrap: balance;
   }
+}
+
+.obsidian-workbench {
+  display: grid;
+  min-height: 680px;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, .14);
+  border-radius: 12px;
+  background: #252a31;
+  box-shadow: 0 30px 80px -45px rgba(15, 23, 42, .75);
+}
+
+@media (min-width: 900px) {
+  .obsidian-workbench {
+    grid-template-columns: 260px 1fr;
+  }
+}
+
+.obsidian-panel {
+  border-right: 1px solid rgba(255,255,255,.08);
+  background: #20252b;
+  padding: 18px;
+  color: rgba(255,255,255,.72);
+}
+
+.obsidian-panel-title {
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(255,255,255,.82);
+}
+
+.obsidian-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 8px;
+  padding: 8px 0;
+  font-size: 13px;
+}
+
+.obsidian-toggle input {
+  accent-color: #8fd6b3;
+}
+
+.obsidian-slider {
+  height: 4px;
+  margin: 14px 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7dd3fc 58%, rgba(255,255,255,.18) 58%);
+}
+
+.obsidian-slider--short {
+  background: linear-gradient(90deg, #f2c86b 34%, rgba(255,255,255,.18) 34%);
+}
+
+.obsidian-graph {
+  position: relative;
+  min-height: 680px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,.055), transparent 28%),
+    linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255,255,255,.035) 1px, transparent 1px),
+    #252a31;
+  background-size: auto, 56px 56px, 56px 56px, auto;
+}
+
+.obsidian-graph-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.obsidian-graph-lines line {
+  stroke: rgba(190, 198, 209, .28);
+  stroke-width: .22;
+  transition: opacity .16s ease, stroke .16s ease;
+}
+
+.obsidian-graph-lines line.muted { opacity: .16; }
+.obsidian-graph-lines line.active { stroke: rgba(141, 211, 252, .62); }
+
+.obsidian-root-node,
+.obsidian-note-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+.obsidian-root-node {
+  left: 50%;
+  top: 50%;
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border-radius: 999px;
+  background: #d1d5db;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 0 0 10px rgba(209,213,219,.08);
+}
+
+.obsidian-note-node {
+  display: grid;
+  gap: 4px;
+  min-width: 148px;
+  max-width: 190px;
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,.86);
+  text-align: center;
+  transition: opacity .16s ease, transform .16s ease;
+}
+
+.obsidian-note-node::before {
+  content: "";
+  justify-self: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  box-shadow: 0 0 0 5px rgba(203,213,225,.08);
+}
+
+.obsidian-note-node span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.obsidian-note-node small {
+  color: rgba(255,255,255,.55);
+  font-size: 11px;
+}
+
+.obsidian-note-node.active:hover,
+.obsidian-note-node:focus {
+  transform: translate(-50%, -50%) scale(1.04);
+}
+
+.obsidian-note-node.muted { opacity: .24; }
+
+.obsidian-launch,
+.obsidian-top-pulse {
+  border-color: rgba(11, 127, 232, .24) !important;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.96), rgba(232,244,255,.9)) !important;
+  color: var(--text) !important;
+  box-shadow: 0 16px 44px -30px rgba(11, 79, 158, .52) !important;
+}
+
+.obsidian-launch::before,
+.obsidian-top-pulse::before,
+.obsidian-arrows {
+  display: none !important;
 }

@@ -10,13 +10,10 @@ interface User {
   role: string;
   role_title: string | null;
   is_active: boolean;
-  quote: string | null;
 }
 
 interface Lead {
   id: number;
-  name: string;
-  status: string;
   owner_id: number | null;
   selected_amount: string | null;
   currency: string;
@@ -24,218 +21,97 @@ interface Lead {
 
 interface Project {
   id: number;
-  name: string;
-  stage: string;
   owner_id: number | null;
   budget_total: string | null;
+  currency: string | null;
 }
 
-interface Task {
-  id: number;
-  status: string;
-  assigned_to: number;
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  new: "новые",
-  contacted: "связались",
-  qualified: "квалификация",
-  proposal_sent: "КП",
-  won: "выиграно",
-  lost: "потеряно",
-};
-
-const ROLE_LABEL: Record<string, string> = {
-  founder: "Founder",
-  manager: "Sales",
-  developer: "Delivery",
-  student: "Student",
-};
-
-function getNodePosition(index: number, total: number): { x: number; y: number } {
-  if (total <= 1) return { x: 50, y: 50 };
-
-  const leftCount = Math.ceil(total / 2);
-  const isLeft = index < leftCount;
-  const sideIndex = isLeft ? index : index - leftCount;
-  const sideCount = isLeft ? leftCount : total - leftCount;
-  const y = sideCount <= 1 ? 50 : 18 + (sideIndex / (sideCount - 1)) * 64;
-
-  return { x: isLeft ? 18 : 82, y };
+function point(index: number, total: number) {
+  const angle = (index / Math.max(1, total)) * Math.PI * 2 - Math.PI / 2;
+  const radius = 34 + (index % 3) * 6;
+  return {
+    x: 50 + Math.cos(angle) * radius,
+    y: 50 + Math.sin(angle) * radius * 0.72,
+  };
 }
 
 export default function ObsidianPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [hoveredUserId, setHoveredUserId] = useState<number | null>(null);
+  const [activeUserId, setActiveUserId] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [usersRes, leadsRes, projectsRes, tasksRes] = await Promise.all([
+      const [usersRes, leadsRes, projectsRes] = await Promise.all([
         apiFetch("/users"),
         apiFetch("/leads"),
         apiFetch("/projects"),
-        apiFetch("/tasks"),
       ]);
       if (usersRes.ok) setUsers(await usersRes.json());
       if (leadsRes.ok) setLeads(await leadsRes.json());
       if (projectsRes.ok) setProjects(await projectsRes.json());
-      if (tasksRes.ok) setTasks(await tasksRes.json());
     })();
   }, []);
 
   const activeUsers = users.filter((user) => user.is_active);
-  const statsByUser = useMemo(() => {
+  const stats = useMemo(() => {
     return new Map(
       activeUsers.map((user) => {
-        const userLeads = leads.filter((lead) => lead.owner_id === user.id);
-        const userProjects = projects.filter((project) => project.owner_id === user.id);
-        const userTasks = tasks.filter((task) => task.assigned_to === user.id);
-        const won = userLeads.filter((lead) => lead.status === "won");
-        const proposal = userLeads.filter((lead) => lead.status === "proposal_sent");
-        const pipelineValue = won.reduce(
-          (sum, lead) => sum + Number(lead.selected_amount ?? 0),
-          0
-        );
-        return [
-          user.id,
-          {
-            leads: userLeads,
-            projects: userProjects,
-            tasks: userTasks,
-            won,
-            proposal,
-            pipelineValue,
-          },
-        ];
+        const ownedLeads = leads.filter((lead) => lead.owner_id === user.id);
+        const ownedProjects = projects.filter((project) => project.owner_id === user.id);
+        const amount =
+          ownedLeads.reduce((sum, lead) => sum + Number(lead.selected_amount ?? 0), 0) +
+          ownedProjects.reduce((sum, project) => sum + Number(project.budget_total ?? 0), 0);
+        return [user.id, { leads: ownedLeads.length, projects: ownedProjects.length, amount }];
       })
     );
-  }, [activeUsers, leads, projects, tasks]);
-
-  const hoveredStats = hoveredUserId ? statsByUser.get(hoveredUserId) : null;
-  const hoveredUser = hoveredUserId ? activeUsers.find((u) => u.id === hoveredUserId) : null;
+  }, [activeUsers, leads, projects]);
 
   return (
-    <AppShell eyebrow="Obsidian?" title="Виртуальный мозг AI Solution">
-      <section className="obsidian-brain-shell rise-in">
-        <div className="obsidian-brain-header">
-          <div>
-            <p className="text-xs font-semibold uppercase text-white/50">живой граф процессов</p>
-            <h2 className="font-display text-3xl font-bold text-white">Все связи ведут к aisolution</h2>
-          </div>
-          <p className="max-w-md text-sm leading-6 text-white/66">
-            Наведи на сотрудника: подсветятся связи, лиды, КП, проекты, задачи и вклад в общий мозг команды.
-          </p>
-        </div>
+    <AppShell eyebrow="Graph view" title="Obsidian CRM">
+      <section className="obsidian-workbench">
+        <aside className="obsidian-panel">
+          <p className="obsidian-panel-title">Filters</p>
+          {["Лиды", "Проекты", "Команда", "Суммы"].map((item) => (
+            <label key={item} className="obsidian-toggle">
+              <span>{item}</span>
+              <input type="checkbox" checked readOnly />
+            </label>
+          ))}
+          <p className="obsidian-panel-title mt-5">Display</p>
+          <div className="obsidian-slider" />
+          <div className="obsidian-slider obsidian-slider--short" />
+        </aside>
 
-        <div
-          className="obsidian-brain-stage"
-          style={{ "--obsidian-stage-height": `${Math.max(640, Math.ceil(activeUsers.length / 2) * 128 + 120)}px` } as React.CSSProperties}
-        >
-          <div className="obsidian-center-core">
-            <span className="obsidian-center-pulse" />
-            <p>aisolution</p>
-            <small>central brain</small>
-          </div>
-
+        <div className="obsidian-graph" onMouseLeave={() => setActiveUserId(null)}>
+          <svg viewBox="0 0 100 100" className="obsidian-graph-lines" preserveAspectRatio="none">
+            {activeUsers.map((user, index) => {
+              const p = point(index, activeUsers.length);
+              const active = activeUserId === null || activeUserId === user.id;
+              return <line key={user.id} x1="50" y1="50" x2={p.x} y2={p.y} className={active ? "active" : "muted"} />;
+            })}
+          </svg>
+          <div className="obsidian-root-node">CRM</div>
           {activeUsers.map((user, index) => {
-            const { x, y } = getNodePosition(index, activeUsers.length);
-            const stats = statsByUser.get(user.id);
-            const active = hoveredUserId === null || hoveredUserId === user.id;
+            const p = point(index, activeUsers.length);
+            const s = stats.get(user.id) ?? { leads: 0, projects: 0, amount: 0 };
+            const active = activeUserId === null || activeUserId === user.id;
             return (
               <button
                 key={user.id}
-                onMouseEnter={() => setHoveredUserId(user.id)}
-                onMouseLeave={() => setHoveredUserId(null)}
-                onFocus={() => setHoveredUserId(user.id)}
-                onBlur={() => setHoveredUserId(null)}
-                className={`obsidian-user-node ${active ? "is-active" : "is-muted"}`}
-                style={{ left: `${x}%`, top: `${y}%` }}
+                onMouseEnter={() => setActiveUserId(user.id)}
+                onFocus={() => setActiveUserId(user.id)}
+                className={`obsidian-note-node ${active ? "active" : "muted"}`}
+                style={{ left: `${p.x}%`, top: `${p.y}%` }}
               >
-                <span className="obsidian-node-dot" />
-                <strong>{user.name}</strong>
-                <small>{user.role_title || ROLE_LABEL[user.role] || user.role}</small>
-                <em>{stats?.leads.length ?? 0} лидов · {stats?.projects.length ?? 0} проектов</em>
+                <span>{user.name}</span>
+                <small>{s.leads} лидов · {s.projects} проектов · {s.amount.toLocaleString("ru-RU")}</small>
               </button>
             );
           })}
-
-          <svg className="obsidian-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
-            {activeUsers.map((user, index) => {
-              const { x, y } = getNodePosition(index, activeUsers.length);
-              const active = hoveredUserId === null || hoveredUserId === user.id;
-              return (
-                <line
-                  key={user.id}
-                  x1="50"
-                  y1="50"
-                  x2={x}
-                  y2={y}
-                  className={active ? "active" : "muted"}
-                />
-              );
-            })}
-          </svg>
-        </div>
-      </section>
-
-      <section className="mt-6 grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-        <div className="rounded-2xl border border-border bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase text-ink-faint">Фокус</p>
-          <h3 className="mt-2 font-display text-xl font-semibold text-ink">
-            {hoveredUser ? hoveredUser.name : "Наведи на узел"}
-          </h3>
-          <p className="mt-2 text-sm leading-6 text-ink-dim">
-            {hoveredUser?.quote ||
-              "Граф покажет, какие лиды обработаны, где КП, сколько проектов и что сейчас держит команда."}
-          </p>
-          {hoveredStats && (
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <Metric label="Лиды" value={hoveredStats.leads.length} />
-              <Metric label="КП" value={hoveredStats.proposal.length} />
-              <Metric label="Выиграно" value={hoveredStats.won.length} />
-              <Metric label="Задачи" value={hoveredStats.tasks.length} />
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-border bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase text-ink-faint">Связанные лиды</p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            {(hoveredStats?.leads ?? leads).slice(0, 8).map((lead) => (
-              <div key={lead.id} className="rounded-xl border border-border bg-bg px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-sm font-semibold text-ink">{lead.name}</p>
-                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent-strong">
-                    {STATUS_LABEL[lead.status] ?? lead.status}
-                  </span>
-                </div>
-                {lead.selected_amount && (
-                  <p className="mt-1 font-mono-num text-xs text-success">
-                    {Number(lead.selected_amount).toLocaleString("ru-RU")} {lead.currency}
-                  </p>
-                )}
-              </div>
-            ))}
-            {(hoveredStats?.leads ?? leads).length === 0 && (
-              <p className="rounded-xl border border-dashed border-border bg-bg px-3 py-8 text-center text-sm text-ink-faint">
-                Пока нет связанных лидов.
-              </p>
-            )}
-          </div>
         </div>
       </section>
     </AppShell>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-border bg-bg p-3">
-      <p className="text-xs text-ink-faint">{label}</p>
-      <p className="mt-1 font-mono-num text-2xl font-semibold text-ink">{value}</p>
-    </div>
   );
 }

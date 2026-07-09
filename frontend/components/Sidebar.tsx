@@ -59,8 +59,9 @@ export default function Sidebar({ role }: { role: string | null }) {
   return (
     <>
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-border bg-bg-elevated/90 backdrop-blur-xl lg:flex">
-        <div className="flex items-center gap-2 px-5 py-5">
-          <Image src="/logo.png" alt="AI Solution" width={32} height={32} className="rounded-lg" />
+        <div className="px-3 py-4">
+        <div className="nav-brand-signal flex items-center gap-2 rounded-2xl px-3 py-3">
+          <Image src="/logo.png" alt="AI Solution" width={32} height={32} className="rounded-lg bg-white/80" />
           <div className="leading-tight">
             <Link
               href="/dashboard"
@@ -75,6 +76,7 @@ export default function Sidebar({ role }: { role: string | null }) {
               CRM
             </Link>
           </div>
+        </div>
         </div>
 
         <nav className="flex-1 space-y-1 px-3">

@@ -466,6 +466,21 @@ async def list_leads(
     return [_row_to_dict(r) for r in rows]
 
 
+@router.get("/{lead_id}")
+async def get_lead(lead_id: int, user: CurrentUser = Depends(require_sales_role)) -> dict:
+    pool = get_pool()
+    row = await pool.fetchrow(
+        f"SELECT {LEAD_FIELDS} FROM leads WHERE id = $1 AND deleted_at IS NULL",
+        lead_id,
+    )
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    if user.role != "founder" and not user.can_view_all_leads:
+        if row["owner_id"] is not None and row["owner_id"] != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lead is not visible")
+    return _row_to_dict(row)
+
+
 @router.get("/{lead_id}/notes")
 async def list_lead_notes(
     lead_id: int, user: CurrentUser = Depends(require_sales_role)

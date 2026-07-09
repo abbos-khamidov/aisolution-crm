@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Archive,
   Check,
   FileText,
   FolderPlus,
+  ArrowRight,
   MessageSquare,
   Paperclip,
   Phone,
@@ -576,7 +578,59 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      <div className="grid gap-4">
+      <section className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+        <div className="grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_auto] gap-3 border-b border-border bg-bg px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ink-faint max-lg:hidden">
+          <span>Лид</span>
+          <span>Контакт</span>
+          <span>Статус</span>
+          <span>Owner</span>
+          <span></span>
+        </div>
+        <div className="divide-y divide-border">
+          {filteredLeads.map((lead) => {
+            const owner = lead.owner_id
+              ? userById.get(lead.owner_id)?.name ?? `#${lead.owner_id}`
+              : "Очередь";
+            return (
+              <Link
+                key={lead.id}
+                href={`/leads/${lead.id}`}
+                className="grid gap-3 px-4 py-3 transition hover:bg-accent-soft/45 lg:grid-cols-[1.5fr_1fr_0.8fr_0.8fr_auto] lg:items-center"
+              >
+                <div className="min-w-0">
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <Badge label={sourceLabel(lead)} tone={sourceKey(lead).includes("popup") ? "spark" : "neutral"} />
+                    <span className="text-xs text-ink-faint">
+                      {new Date(lead.created_at).toLocaleDateString("ru-RU")}
+                    </span>
+                  </div>
+                  <p className="truncate font-display text-base font-semibold text-ink">{lead.name}</p>
+                  {lead.company_name && <p className="truncate text-sm text-ink-dim">{lead.company_name}</p>}
+                </div>
+                <div className="min-w-0 text-sm text-ink-dim">
+                  <p className="truncate">{lead.phone || lead.email || "Контакта нет"}</p>
+                  {lead.message && <p className="truncate text-xs text-ink-faint">{lead.message}</p>}
+                </div>
+                <div>
+                  <Badge label={STATUS_LABEL[lead.status] ?? lead.status} tone={STATUS_TONE[lead.status] ?? "neutral"} />
+                </div>
+                <p className="truncate text-sm font-medium text-ink-dim">{owner}</p>
+                <span className="inline-flex items-center justify-end gap-2 text-sm font-semibold text-accent-strong">
+                  Открыть
+                  <ArrowRight size={16} />
+                </span>
+              </Link>
+            );
+          })}
+          {filteredLeads.length === 0 && (
+            <div className="px-4 py-12 text-center text-sm text-ink-faint">
+              По этим фильтрам заявок нет.
+            </div>
+          )}
+        </div>
+      </section>
+
+      <div className="hidden">
         <section className="space-y-3">
           <div className="space-y-3">
             {filteredLeads.map((lead) => {

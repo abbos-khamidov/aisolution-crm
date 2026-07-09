@@ -55,6 +55,7 @@ export default function TeamPage() {
   const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<number, boolean>>({});
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [positionFilter, setPositionFilter] = useState(ALL_POSITIONS);
   const [form, setForm] = useState({
     name: "",
@@ -135,6 +136,7 @@ export default function TeamPage() {
       return;
     }
     setForm({ name: "", email: "", password: "", phone: "", telegram_id: "", role: "manager", role_title: "" });
+    showToast("Сотрудник добавлен.");
     await load();
   }
 
@@ -148,6 +150,7 @@ export default function TeamPage() {
       setError(data.detail ?? `Ошибка ${res.status}`);
       return;
     }
+    showToast("Изменения сотрудника сохранены.");
     await load();
   }
 
@@ -159,7 +162,13 @@ export default function TeamPage() {
       setError(data.detail ?? `Ошибка ${res.status}`);
       return;
     }
+    showToast("Сотрудник отправлен в архив.");
     await load();
+  }
+
+  function showToast(message: string) {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 3600);
   }
 
   function updateDraft(userId: number, patch: Partial<UserDraft>) {
@@ -191,6 +200,11 @@ export default function TeamPage() {
 
   return (
     <AppShell eyebrow="Доступы и роли" title="Команда">
+      {toast && (
+        <div className="fixed right-6 top-6 z-50 rounded-2xl border border-success/20 bg-white/95 px-4 py-3 text-sm font-semibold text-success shadow-glow">
+          {toast}
+        </div>
+      )}
       {error && (
         <p className="mb-4 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
           {error}
