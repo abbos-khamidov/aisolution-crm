@@ -801,8 +801,10 @@ h1, h2, h3, h4, .font-display {
   bottom: 76px;
   z-index: 2;
   display: flex;
+  max-width: calc(100vw - 32px);
   transform: translateX(-50%);
   align-items: center;
+  justify-content: center;
   gap: 12px;
   border: 1px solid rgba(15,23,42,.08);
   border-radius: 999px;
@@ -813,6 +815,7 @@ h1, h2, h3, h4, .font-display {
   font-weight: 800;
   box-shadow: 0 20px 60px -40px rgba(15,23,42,.5);
   transform: translate3d(-50%, 0, 0);
+  white-space: nowrap;
 }
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -893,6 +896,57 @@ h1, h2, h3, h4, .font-display {
   .obsidian-center-pulse {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .login-intro {
+    place-items: start center;
+    padding: 76px 16px 128px;
+  }
+
+  .intro-core {
+    width: 100%;
+    max-width: 420px;
+    padding: 26px 20px;
+    border-radius: 26px;
+  }
+
+  .intro-core h2 {
+    font-size: clamp(28px, 10vw, 42px);
+    line-height: 1.08;
+  }
+
+  .intro-copy {
+    margin-top: 14px;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  .intro-kicker {
+    margin-top: 14px;
+    font-size: 11px;
+  }
+
+  .intro-steps {
+    bottom: 28px;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    border-radius: 18px;
+    padding: 10px 12px;
+    font-size: 12px;
+    white-space: normal;
+  }
+
+  .intro-steps svg {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+  }
+
+  .intro-skip {
+    right: 16px;
+    top: 16px;
   }
 }
 
@@ -1035,7 +1089,7 @@ h1, h2, h3, h4, .font-display {
 .obsidian-brain-stage {
   position: relative;
   margin-top: 24px;
-  min-height: 580px;
+  min-height: var(--obsidian-stage-height, 640px);
 }
 
 .obsidian-lines {
@@ -1108,8 +1162,8 @@ h1, h2, h3, h4, .font-display {
 .obsidian-user-node {
   position: absolute;
   z-index: 4;
-  width: 168px;
-  min-height: 104px;
+  width: 156px;
+  min-height: 98px;
   transform: translate(-50%, -50%);
   border: 1px solid rgba(255,255,255,.2);
   border-radius: 20px;
@@ -1146,15 +1200,19 @@ h1, h2, h3, h4, .font-display {
 .obsidian-user-node small,
 .obsidian-user-node em {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .obsidian-user-node strong {
   font-size: 14px;
+  white-space: nowrap;
 }
 
 .obsidian-user-node small {
   margin-top: 2px;
   color: rgba(255,255,255,.58);
+  white-space: nowrap;
 }
 
 .obsidian-user-node em {
@@ -1162,6 +1220,7 @@ h1, h2, h3, h4, .font-display {
   font-style: normal;
   color: rgba(255,255,255,.8);
   font-size: 11px;
+  white-space: nowrap;
 }
 
 @media (max-width: 1023px) {

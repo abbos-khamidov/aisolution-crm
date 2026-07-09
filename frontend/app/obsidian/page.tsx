@@ -52,6 +52,18 @@ const ROLE_LABEL: Record<string, string> = {
   student: "Student",
 };
 
+function getNodePosition(index: number, total: number): { x: number; y: number } {
+  if (total <= 1) return { x: 50, y: 50 };
+
+  const leftCount = Math.ceil(total / 2);
+  const isLeft = index < leftCount;
+  const sideIndex = isLeft ? index : index - leftCount;
+  const sideCount = isLeft ? leftCount : total - leftCount;
+  const y = sideCount <= 1 ? 50 : 18 + (sideIndex / (sideCount - 1)) * 64;
+
+  return { x: isLeft ? 18 : 82, y };
+}
+
 export default function ObsidianPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -118,7 +130,10 @@ export default function ObsidianPage() {
           </p>
         </div>
 
-        <div className="obsidian-brain-stage">
+        <div
+          className="obsidian-brain-stage"
+          style={{ "--obsidian-stage-height": `${Math.max(640, Math.ceil(activeUsers.length / 2) * 128 + 120)}px` } as React.CSSProperties}
+        >
           <div className="obsidian-center-core">
             <span className="obsidian-center-pulse" />
             <p>aisolution</p>
@@ -126,10 +141,7 @@ export default function ObsidianPage() {
           </div>
 
           {activeUsers.map((user, index) => {
-            const angle = (index / Math.max(activeUsers.length, 1)) * Math.PI * 2 - Math.PI / 2;
-            const radius = 39;
-            const x = 50 + Math.cos(angle) * radius;
-            const y = 50 + Math.sin(angle) * radius * 0.72;
+            const { x, y } = getNodePosition(index, activeUsers.length);
             const stats = statsByUser.get(user.id);
             const active = hoveredUserId === null || hoveredUserId === user.id;
             return (
@@ -152,10 +164,7 @@ export default function ObsidianPage() {
 
           <svg className="obsidian-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
             {activeUsers.map((user, index) => {
-              const angle = (index / Math.max(activeUsers.length, 1)) * Math.PI * 2 - Math.PI / 2;
-              const radius = 39;
-              const x = 50 + Math.cos(angle) * radius;
-              const y = 50 + Math.sin(angle) * radius * 0.72;
+              const { x, y } = getNodePosition(index, activeUsers.length);
               const active = hoveredUserId === null || hoveredUserId === user.id;
               return (
                 <line

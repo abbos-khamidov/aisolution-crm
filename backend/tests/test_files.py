@@ -1,5 +1,7 @@
 import pytest
 
+import app.core.storage as storage_module
+from app.core.config import settings
 from tests.conftest import auth_headers, make_user
 
 
@@ -44,6 +46,20 @@ async def test_upload_and_non_founder_cannot_approve(client, db, s3):
         f"/files/{body['id']}/approve", json={}, headers=auth_headers(token)
     )
     assert resp.status_code == 403
+
+
+def test_upload_uses_local_storage_when_s3_endpoint_is_blank(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "s3_endpoint_url", "")
+    monkeypatch.setattr(settings, "s3_access_key", "dev-access-key")
+    monkeypatch.setattr(settings, "s3_secret_key", "dev-secret-key")
+    monkeypatch.setattr(settings, "local_upload_dir", str(tmp_path))
+    storage_module._client = None
+
+    url = storage_module.upload_file(b"%PDF-1.4", "proposal.pdf", "application/pdf")
+
+    assert url.startswith("/uploads/")
+    assert list(tmp_path.iterdir())[0].read_bytes() == b"%PDF-1.4"
+    assert storage_module._client is None
 
 
 @pytest.mark.asyncio

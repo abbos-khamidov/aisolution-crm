@@ -12,9 +12,10 @@ _client = None
 def _get_client():
     global _client
     if _client is None:
+        endpoint_url = settings.s3_endpoint_url or None
         _client = boto3.client(
             "s3",
-            endpoint_url=settings.s3_endpoint_url,
+            endpoint_url=endpoint_url,
             region_name=settings.s3_region,
             aws_access_key_id=settings.s3_access_key,
             aws_secret_access_key=settings.s3_secret_key,
@@ -30,8 +31,10 @@ def upload_file(content: bytes, filename: str, content_type: str) -> str:
     persisted in the `files` table.
     """
     key = f"{uuid.uuid4()}-{filename}"
+    endpoint_url = settings.s3_endpoint_url or None
+    public_url_base = settings.s3_public_url_base or None
     if (
-        settings.s3_endpoint_url is None
+        endpoint_url is None
         and settings.s3_access_key == "dev-access-key"
         and settings.s3_secret_key == "dev-secret-key"
     ):
@@ -47,8 +50,8 @@ def upload_file(content: bytes, filename: str, content_type: str) -> str:
         Body=content,
         ContentType=content_type,
     )
-    if settings.s3_public_url_base:
-        return f"{settings.s3_public_url_base.rstrip('/')}/{key}"
-    if settings.s3_endpoint_url:
-        return f"{settings.s3_endpoint_url.rstrip('/')}/{settings.s3_bucket}/{key}"
+    if public_url_base:
+        return f"{public_url_base.rstrip('/')}/{key}"
+    if endpoint_url:
+        return f"{endpoint_url.rstrip('/')}/{settings.s3_bucket}/{key}"
     return f"https://{settings.s3_bucket}.s3.{settings.s3_region}.amazonaws.com/{key}"
