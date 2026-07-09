@@ -15,7 +15,7 @@ const STAT_CHIPS = [
   { label: "03", value: "сумма летит в прогноз" },
 ];
 
-const INTRO_STEPS = ["Сайт", "Лид", "КП", "Проект", "Финансы"];
+const INTRO_STEPS = ["Сайт", "Лид", "КП", "Проект"];
 
 // Deterministic swarm (no Math.random — must render identically on server
 // and client, or hydration breaks event handlers on the whole overlay,
@@ -336,10 +336,10 @@ function LoginIntro({ onDone }: { onDone: () => void }) {
         <h2>
           Заявка заходит.
           <br />
-          CRM собирает маршрут.
+          CRM ведет маршрут.
         </h2>
         <p className="intro-copy">
-          Лид, владелец, КП, проект и деньги сходятся в один рабочий центр.
+          Лид, владелец, КП и проект сходятся в один рабочий центр.
         </p>
       </div>
       <div className="intro-steps">

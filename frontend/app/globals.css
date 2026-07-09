@@ -968,6 +968,10 @@ h1, h2, h3, h4, .font-display {
   }
 
   .login-intro {
+    left: 0;
+    right: auto;
+    width: 100vw;
+    max-width: 100vw;
     overflow: hidden;
     justify-content: center;
     gap: 14px;
@@ -1007,7 +1011,7 @@ h1, h2, h3, h4, .font-display {
 
   .intro-steps {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     box-sizing: border-box;
     width: calc(100vw - 32px);
     max-width: 358px;
@@ -1035,7 +1039,8 @@ h1, h2, h3, h4, .font-display {
 
   .intro-skip {
     position: fixed;
-    right: 14px;
+    left: 14px;
+    right: auto;
     top: 14px;
     max-width: calc(100vw - 28px);
     padding: 9px 12px;
