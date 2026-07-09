@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch, getToken } from "@/lib/api";
 import { decodeJwt } from "@/lib/jwt";
+import MoneyRain from "@/components/MoneyRain";
 import Sidebar from "@/components/Sidebar";
 
 const BACKDROP_LINES = [
@@ -112,6 +113,7 @@ export default function AppShell({
           ))}
         </div>
       </div>
+      <MoneyRain />
       <Sidebar role={role} />
       <main className="relative z-10 min-h-screen px-4 py-5 pb-28 sm:px-6 lg:ml-60 lg:px-12 lg:py-8 lg:pb-8">
         <div className="mx-auto max-w-6xl">

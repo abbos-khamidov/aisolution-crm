@@ -170,6 +170,16 @@ h1, h2, h3, h4, .font-display {
     radial-gradient(circle at 88% 82%, rgba(5, 150, 105, 0.08), transparent 30%);
 }
 
+.money-rain-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  opacity: .95;
+}
+
 .crm-live-track {
   position: absolute;
   left: 240px;
